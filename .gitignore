@@ -1,0 +1,12 @@
+node_modules/
+dist/
+data/
+test-results/
+playwright-report/
+.DS_Store
+*.log
+scripts/.venv/
+
+# machine-specific deployment config and notes (never commit real hosts/domains)
+deploy/deploy.env
+CLAUDE.local.md

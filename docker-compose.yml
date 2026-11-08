@@ -1,0 +1,24 @@
+services:
+  werewolf-dealer:
+    build: .
+    image: werewolf-dealer:latest
+    container_name: werewolf-dealer
+    restart: unless-stopped
+    init: true
+    # only reachable through the reverse proxy on the host (HOST_PORT from deploy/deploy.env)
+    ports:
+      - "127.0.0.1:${HOST_PORT:-3232}:3000"
+    environment:
+      # the proxy sets X-Forwarded-For; the port above is bound to loopback only
+      TRUST_PROXY: "1"
+    volumes:
+      - werewolf-data:/data
+    mem_limit: 256m
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "3"
+
+volumes:
+  werewolf-data:

@@ -1,0 +1,11 @@
+# Caddy site for Werewolf Dealer. deploy/deploy.sh renders {{DOMAIN}} and {{HOST_PORT}}
+# from deploy/deploy.env. Caddy obtains the TLS certificate automatically and
+# proxies the WebSocket endpoint (/ws) without extra configuration.
+{{DOMAIN}} {
+	encode zstd gzip
+	reverse_proxy 127.0.0.1:{{HOST_PORT}}
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		-Server
+	}
+}

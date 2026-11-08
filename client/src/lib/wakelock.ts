@@ -1,0 +1,54 @@
+// Keep the screen on during a game: Screen Wake Lock API, falling back to a
+// muted looping inline video (older iOS / WeChat WebViews).
+let sentinel: { release(): Promise<void> } | null = null;
+let video: HTMLVideoElement | null = null;
+let wanted = false;
+
+async function acquire(): Promise<void> {
+  const nav = navigator as Navigator & { wakeLock?: { request(t: 'screen'): Promise<{ release(): Promise<void> }> } };
+  if (nav.wakeLock) {
+    try {
+      sentinel = await nav.wakeLock.request('screen');
+      return;
+    } catch {
+      /* fall through */
+    }
+  }
+  if (!video) {
+    video = document.createElement('video');
+    video.setAttribute('playsinline', '');
+    video.setAttribute('webkit-playsinline', '');
+    video.muted = true;
+    video.loop = true;
+    video.src = '/nosleep.mp4';
+    video.style.cssText = 'position:fixed;width:1px;height:1px;opacity:0.01;pointer-events:none;bottom:0;left:0';
+    document.body.appendChild(video);
+  }
+  try {
+    await video.play();
+  } catch {
+    /* needs a user gesture; retried on the next tap */
+  }
+}
+
+export function keepAwake(on: boolean): void {
+  wanted = on;
+  if (on) void acquire();
+  else {
+    void sentinel?.release().catch(() => {});
+    sentinel = null;
+    video?.pause();
+  }
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (wanted && document.visibilityState === 'visible') void acquire();
+});
+// some browsers only allow the fallback after a gesture
+document.addEventListener(
+  'pointerdown',
+  () => {
+    if (wanted && !sentinel) void acquire();
+  },
+  { passive: true },
+);
