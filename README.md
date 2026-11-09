@@ -301,8 +301,8 @@ Server environment: `PORT` (3000), `HOST`, `DATA_DIR` (room snapshots, default `
   prompt-derived action must be accepted, every game must end, and nothing the judge says at night may
   contain a seat number.
 - `tests/server/server.test.ts`: real WebSocket clients play a full game; per-client privacy,
-  reconnect, owner permissions, seat release/re-claim, owner link, restart persistence, origin check, and
-  an owner playing a seat among bots.
+  reconnect, owner permissions, seat release/re-claim, owner link, restart persistence, origin check, the
+  search-engine opt-out (robots.txt, noindex, crawlers refused by user agent) and an owner playing a seat among bots.
 - `tests/server/bots.test.ts`: bot decisions on hand-made views (only their own turn, never a teammate,
   following a human wolf, seer checks, potions, mandatory skills, 盗宝大师, death skills), seating and takeovers
   in the lobby and mid-game, a person among bots, pause, restart persistence, waiting for the judge's
@@ -373,6 +373,19 @@ node scripts/smoke.ts ynlbh https://werewolf.example.com   # optional: 12 bots p
 ```
 
 Logs: `docker logs -f werewolf-dealer` on the host. Health: `GET /api/health`.
+
+**Kept out of search engines.** An instance is meant for one group's chat, so it stays out of search engines,
+archives and AI training sets:
+
+- `/robots.txt` disallows everything.
+- Every response carries `X-Robots-Tag: noindex, nofollow, noarchive, nosnippet, noimageindex`, and the page has the
+  same `robots` meta tag.
+- Crawlers that identify themselves (search engines, SEO tools, AI crawlers such as GPTBot, ClaudeBot or CCBot,
+  web archives) get `403` everywhere except `/robots.txt` and `/api/health`.
+
+Phones and the link previews of chat apps (Telegram, WhatsApp, Discord, Slack, iMessage …) are not affected. A
+scraper that pretends to be a browser can still load the app itself, but there is nothing to find: games live
+behind random room links that expire after 48 hours idle.
 
 **Capacity.** A small VPS is plenty. Measured with `scripts/loadtest.ts` against an instance on a 1 vCPU / 1 GB
 VPS behind Caddy (HTTPS), with simulated phones that load the page, play at human speed with

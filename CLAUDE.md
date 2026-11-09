@@ -118,3 +118,7 @@ Only owner devices play audio; music is ducked to ~3% while the judge speaks.
   `$CADDY_SITE`, validates `$CADDYFILE` (restores the old file on failure) → `systemctl reload caddy`
   → health checks.
 - Logs: `docker logs -f werewolf-dealer`; health: `/api/health`.
+- Instances stay out of search engines (`server/index.ts`): `/robots.txt` disallows all, every response has
+  `X-Robots-Tag: noindex…` (plus the `robots` meta in `client/index.html`), and `isCrawler()` user agents get 403
+  except on `/robots.txt` and `/api/health`. Chat link previews (`PREVIEW_UA`) and phones must stay allowed;
+  `tests/server/server.test.ts` checks real user-agent strings for both sides.

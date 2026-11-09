@@ -53,6 +53,8 @@ const MIME: Record<string, string> = {
 };
 
 const SECURITY_HEADERS: Record<string, string> = {
+  // a private game server: nothing here belongs in a search engine, an archive or an AI training set
+  'X-Robots-Tag': 'noindex, nofollow, noarchive, nosnippet, noimageindex',
   'X-Content-Type-Options': 'nosniff',
   'Referrer-Policy': 'strict-origin-when-cross-origin',
   'X-Frame-Options': 'DENY',
@@ -62,6 +64,20 @@ const SECURITY_HEADERS: Record<string, string> = {
     "media-src 'self' blob: data:; font-src 'self'; connect-src 'self' ws: wss:; base-uri 'none'; " +
     "frame-ancestors 'none'; form-action 'self'; object-src 'none'",
 };
+
+/** robots.txt: every well-behaved crawler (search engines, AI crawlers, SEO tools, archives) stays out */
+const ROBOTS_TXT = '# Private game server: please do not crawl, index or archive anything here.\nUser-agent: *\nDisallow: /\n';
+
+/** crawlers that say who they are: search engines, SEO tools, AI crawlers, archivers, scanners */
+const CRAWLER_UA =
+  /bot\/|crawl|spider|slurp|scrapy|scraper|httrack|heritrix|archive\.org_bot|ia_archiver|petalbot|coccocbot|imagesiftbot|img2dataset|barkrowler|bingpreview|googleother|google-inspectiontool|adsbot-google|mediapartners-google|storebot-google|chatgpt-user|perplexity|claude-user|anthropic-ai|cohere-ai|meta-external|omgili|censys|netcraft|zgrab|masscan/i;
+/** chat apps fetching a link preview stay welcome, so a shared room link still gets its card */
+const PREVIEW_UA = /facebookexternalhit|twitterbot|telegrambot|slackbot|discordbot|whatsapp|linkedinbot|skypeuripreview|iframely|embedly/i;
+
+/** a self-identified crawler (never a phone: browser user agents carry none of these words) */
+export function isCrawler(ua: string | undefined): boolean {
+  return !!ua && CRAWLER_UA.test(ua) && !PREVIEW_UA.test(ua);
+}
 
 const CLIENT_ID_RE = /^[A-Za-z0-9_-]{16,64}$/;
 const ROOM_ID_RE = /^[a-z0-9]{4,16}$/;
@@ -194,7 +210,18 @@ export function startServer(opts: ServerOptions) {
     try {
       const url = new URL(req.url ?? '/', 'http://x');
       const p = url.pathname;
+      // crawlers may read robots.txt (an unreadable one counts as "crawl everything") and nothing else
+      if (p === '/robots.txt') {
+        res.writeHead(200, { ...SECURITY_HEADERS, 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'public, max-age=86400' });
+        res.end(ROBOTS_TXT);
+        return;
+      }
       if (p === '/api/health') return sendJson(res, 200, { ok: true, rooms: mgr.rooms.size });
+      if (isCrawler(req.headers['user-agent'])) {
+        res.writeHead(403, { ...SECURITY_HEADERS, 'Content-Type': 'text/plain; charset=utf-8' });
+        res.end('This is a private game server. Crawling is not allowed.');
+        return;
+      }
       if (p === '/api/rooms' && req.method === 'POST') {
         if (!createLimiter.allow(clientIp(req))) return sendJson(res, 429, { error: '创建房间过于频繁，请稍后再试' });
         let body: Record<string, unknown>;
@@ -236,7 +263,7 @@ export function startServer(opts: ServerOptions) {
 
   server.on('upgrade', (req, socket, head) => {
     const url = new URL(req.url ?? '/', 'http://x');
-    if (url.pathname !== '/ws') {
+    if (url.pathname !== '/ws' || isCrawler(req.headers['user-agent'])) {
       socket.destroy();
       return;
     }

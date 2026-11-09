@@ -351,6 +351,79 @@ describe('server', () => {
     await again.close();
   });
 
+  it('stays out of search engines: robots.txt, noindex everywhere, crawlers turned away', async () => {
+    const base = `http://127.0.0.1:${srv.port}`;
+    const get = (p: string, ua?: string) => fetch(base + p, { headers: ua ? { 'user-agent': ua } : {} });
+    const crawlers = [
+      'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
+      'Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Mobile Safari/537.36 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
+      'Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm) Chrome/116.0.1938.76 Safari/537.36',
+      'Mozilla/5.0 (compatible; Baiduspider/2.0; +http://www.baidu.com/search/spider.html)',
+      'Sogou web spider/4.0(+http://www.sogou.com/docs/help/webmasters.htm#07)',
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0 Safari/537.36; 360Spider',
+      'Mozilla/5.0 (compatible; YandexBot/3.0; +http://yandex.com/bots)',
+      'Mozilla/5.0 (Linux; Android 5.0) AppleWebKit/537.36 (KHTML, like Gecko) Mobile Safari/537.36 (compatible; Bytespider; spider-feedback@bytedance.com)',
+      'Mozilla/5.0 (Linux; Android 7.0;) AppleWebKit/537.36 (KHTML, like Gecko) Mobile Safari/537.36 (compatible; PetalBot;+https://webmaster.petalsearch.com/site/petalbot)',
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_5) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/13.1.1 Safari/605.1.15 (Applebot/0.1; +http://www.apple.com/go/applebot)',
+      'Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; GPTBot/1.2; +https://openai.com/gptbot)',
+      'Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; ChatGPT-User/1.0; +https://openai.com/bot',
+      'Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; ClaudeBot/1.0; +claudebot@anthropic.com)',
+      'CCBot/2.0 (https://commoncrawl.org/faq/)',
+      'Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; PerplexityBot/1.0; +https://perplexity.ai/perplexitybot)',
+      'meta-externalagent/1.1 (+https://developers.facebook.com/docs/sharing/webmasters/crawler)',
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) AppleWebKit/600.2.5 (KHTML, like Gecko) Version/8.0.2 Safari/600.2.5 (Amazonbot/0.1; +https://developer.amazon.com/support/amazonbot)',
+      'Mozilla/5.0 (compatible; AhrefsBot/7.0; +http://ahrefs.com/robot/)',
+      'Mozilla/5.0 (compatible; SemrushBot/7~bl; +http://www.semrush.com/bot.html)',
+      'Mozilla/5.0 (compatible; archive.org_bot +http://archive.org/details/archive.org_bot)',
+      'Scrapy/2.11.0 (+https://scrapy.org)',
+    ];
+    const people = [
+      '', // websocket libraries, curl -A ''
+      'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1',
+      'Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36',
+      'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 MicroMessenger/8.0.49(0x18003137) NetType/WIFI Language/zh_CN',
+      'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 SP-engine/2.95.0 main%2F1.0 baiduboxapp/13.62.0.10 (Baidu; P2 17.5) NABar/1.0',
+      'Mozilla/5.0 (Linux; Android 13; V2219A) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.58 Mobile Safari/537.36 SogouMSE,SogouMobileBrowser/5.38.2',
+      'Mozilla/5.0 (Linux; Android 13; 22081212C; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/114.0 Mobile Safari/537.36 aweme_290600 JsSdk/1.0 NetType/WIFI ByteLocale/zh-CN BytedanceWebview/d8a21c6',
+      'Mozilla/5.0 (Linux; Android 12; HarmonyOS; NOH-AN00; HMSCore 6.13.0.302) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/99.0 HuaweiBrowser/14.0.5.302 Mobile Safari/537.36',
+      'Mozilla/5.0 (Linux; U; Android 13; zh-cn; PGEM10) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/109.0 MQQBrowser/14.4 Mobile Safari/537.36',
+      'Mozilla/5.0 (Linux; Android 11; CUBOT X50) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
+      // chat apps building the preview card of a shared room link
+      'TelegramBot (like TwitterBot)',
+      'facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)',
+      'WhatsApp/2.23.20.0',
+      'Mozilla/5.0 (compatible; Discordbot/2.0; +https://discordapp.com)',
+      'Slackbot-LinkExpanding 1.0 (+https://api.slack.com/robots)',
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_1) AppleWebKit/601.2.4 (KHTML, like Gecko) Version/9.0.1 Safari/601.2.4 facebookexternalhit/1.1 Facebot Twitterbot/1.0',
+    ];
+    const created = await post(srv.port, '/api/rooms', { clientId: ids[0], config: CFG, name: '房主' });
+    const roomUrl = `/api/rooms/${created.body.roomId}`;
+    // robots.txt is readable by everybody (an unreadable one would mean "crawl everything") and says no
+    for (const ua of [crawlers[0], people[1]]) {
+      const r = await get('/robots.txt', ua);
+      expect(r.status).toBe(200);
+      expect(await r.text()).toMatch(/^User-agent: \*\nDisallow: \/$/m);
+    }
+    // every response says noindex, whatever it is
+    for (const p of ['/robots.txt', '/api/health', roomUrl, '/api/rooms/nope', '/r/abcdefgh', '/assets/x.js'])
+      expect((await get(p)).headers.get('x-robots-tag'), p).toBe('noindex, nofollow, noarchive, nosnippet, noimageindex');
+    for (const ua of crawlers) {
+      expect((await get(roomUrl, ua)).status, ua).toBe(403);
+      expect((await get('/', ua)).status, ua).toBe(403);
+      // the health check stays open for uptime monitors
+      expect((await get('/api/health', ua)).status, ua).toBe(200);
+    }
+    for (const ua of people) expect((await get(roomUrl, ua)).status, ua).toBe(200);
+    // crawlers cannot open the game socket either
+    const outcome = await new Promise<string>((r) => {
+      const ws = new WebSocket(`ws://127.0.0.1:${srv.port}/ws`, { headers: { origin: base, 'user-agent': crawlers[10] } });
+      ws.on('open', () => r('open'));
+      ws.on('error', () => r('refused'));
+      ws.on('close', () => r('refused'));
+    });
+    expect(outcome).toBe('refused');
+  });
+
   it('rejects websocket upgrades from foreign origins', async () => {
     const ws = new WebSocket(`ws://127.0.0.1:${srv.port}/ws`, { headers: { origin: 'https://evil.example' } });
     const outcome = await new Promise<string>((r) => {
