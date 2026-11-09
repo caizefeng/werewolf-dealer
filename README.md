@@ -374,6 +374,29 @@ node scripts/smoke.ts ynlbh https://werewolf.example.com   # optional: 12 bots p
 
 Logs: `docker logs -f werewolf-dealer` on the host. Health: `GET /api/health`.
 
+**Capacity.** A small VPS is plenty. Measured with `scripts/loadtest.ts` against an instance on a 1 vCPU / 1 GB
+VPS behind Caddy (HTTPS), with simulated phones that load the page, play at human speed with
+8-second speeches and drop and reconnect after screen locks. The server's own share of each WebSocket round trip
+was about 10 ms at the median and at most about 40 ms at p95; the rest of the table's times are network distance (66 ms when idle).
+
+| Load | Server CPU (app + Caddy) | App memory | WebSocket round trip p50 / p95 | Action answered (p95) | Errors |
+| --- | --- | --- | --- | --- | --- |
+| 4 rooms, 48 phones | 1% + <1% average | 58 MB | 75 / 91 ms | 84 ms | 0 |
+| 10 rooms, 120 phones | 2% + 1% average | 59 MB | 74 / 97 ms | 82 ms | 0 |
+| 20 rooms, 240 phones + 5 rooms of bots | 4% + 1% average, 15% peak | 72 MB peak | 77 / 108 ms | 82 ms | 0 |
+
+Restarting the container in the middle of 10 games (as a redeploy does) took about 2 s. Every phone
+reconnected on its own within a few seconds, and the games went on where they were. At the busiest load,
+WebSocket traffic averaged about 3.5 Mbit/s, because every update carries the player's whole view, about 5–9 KB.
+To try your own instance:
+
+```bash
+node scripts/loadtest.ts https://werewolf.example.com --rooms 10 --minutes 8   # 10 rooms of 12 simulated phones
+node scripts/loadtest.ts https://werewolf.example.com --cleanup                 # afterwards: end the test games
+```
+
+An instance accepts at most 30 new rooms per hour from one IP, so the load test keeps its rooms in a file and reuses them.
+
 ## License & credits
 
 MIT © Zefeng Cai (see `LICENSE`).

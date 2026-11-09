@@ -41,7 +41,7 @@ tests/server/      # vitest: real ws clients play a game, privacy, reconnect, pe
                    #         seating/takeovers, all-bot games on a fake clock)
 tests/e2e/         # Playwright phone profiles (game, boards, newboards, solo specs); bots.ts = scripted ws test
                    #         players (not the built-in bots)
-scripts/           # gen_audio.py (edge-tts), smoke.ts (live smoke test), find-overflow.mjs,
+scripts/           # gen_audio.py (edge-tts), smoke.ts (live smoke test), loadtest.ts (simulated rooms of phones), find-overflow.mjs,
                    # screenshots.ts (README screenshots → docs/screenshots)
 deploy/            # deploy.sh, deploy.env.example, werewolf.caddy.template (deploy.env is git-ignored)
 Dockerfile, docker-compose.yml
@@ -56,6 +56,7 @@ npm run typecheck    # tsc --noEmit (erasableSyntaxOnly: no enums/param properti
 npm run build        # client → dist/client
 npm run test:e2e     # playwright (builds, starts server with TIME_SCALE=0.3 TEST_HOOKS=1)
 node scripts/smoke.ts <board> <base-url>                       # smoke test: 12 bots play night 1 on an instance
+node scripts/loadtest.ts <base-url> --rooms 10 --minutes 8     # load test (rooms reused via --rooms-file; --cleanup after)
 node scripts/find-overflow.mjs http://localhost:3000/ 375      # list elements wider than a phone
 npm run build && node scripts/screenshots.ts [scene…]          # regenerate README screenshots (main lobby wolfgirl knight treasure)
 deploy/deploy.sh     # deploy an instance (reads git-ignored deploy/deploy.env)
