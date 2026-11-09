@@ -757,6 +757,12 @@ h4 {
   background: var(--accent-dim);
   color: #b8b0ff;
 }
+.bot-mark {
+  display: inline-flex;
+  vertical-align: -2px;
+  margin-right: 2px;
+  color: var(--text-3);
+}
 .seat.empty {
   border-style: dashed;
   background: rgba(255, 255, 255, 0.02);
@@ -918,6 +924,20 @@ h4 {
 }
 .night-act h3 {
   color: #dfe3ff;
+}
+.bot-box {
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+.bot-box .row.between {
+  flex-wrap: wrap;
+}
+.bot-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  color: var(--text-2);
 }
 .lobby-config .cfg-title {
   font-weight: 700;

@@ -9,11 +9,12 @@ and a night soundtrack.
 The UI is in Chinese and designed for phones (iPhone SE and up, Android, WeChat's built-in browser).
 It is self-hosted: run your own instance (one small Docker container, see
 [Deploy your own instance](#deploy-your-own-instance)) and share its link with your group.
+Short of players, or trying a board alone? [Bots](#playing-with-bots) fill the empty seats.
 
 <table>
   <tr>
     <td align="center"><img src="docs/screenshots/home.jpg" width="180" alt="Pick a board or any role mix"><br><sub>Pick a board or any role mix</sub></td>
-    <td align="center"><img src="docs/screenshots/lobby.jpg" width="180" alt="Join by link, take a seat"><br><sub>Join by link, take a seat</sub></td>
+    <td align="center"><img src="docs/screenshots/lobby.jpg" width="180" alt="Friends join by link, bots fill the rest"><br><sub>Friends join by link, bots fill the rest</sub></td>
     <td align="center"><img src="docs/screenshots/role.jpg" width="180" alt="Your own role card"><br><sub>Your own role card</sub></td>
     <td align="center"><img src="docs/screenshots/wolves.jpg" width="180" alt="Night: the pack agrees on a kill"><br><sub>Night: the pack agrees on a kill</sub></td>
   </tr>
@@ -42,6 +43,7 @@ It is self-hosted: run your own instance (one small Docker container, see
 2. **Invite**: tap 邀请 → 复制链接 and paste it in the group chat. Anyone with the link joins
    (no accounts; identity is a random id kept in the browser, like when2meet).
 3. **Seats**: everyone (including the owner) taps a free seat. Seats are numbered like the table.
+   Not enough people? The owner taps **补满空位** and bots take the empty seats (see [Playing with bots](#playing-with-bots)).
 4. **发牌** (owner, when all seats are filled) → everyone taps 查看我的身份 (tap the card to flip it).
    The role card can be reopened at any time from 身份 in the bottom bar.
 5. **开始游戏**: the night starts. The owner's phone speaks every directive (天黑请闭眼, 狼人请睁眼 …)
@@ -59,8 +61,31 @@ Bottom bar (identical for every role, so a glance at someone's phone reveals not
 
 Owner menu (⋮): invite link, an **owner link** for using another device, sound settings (voice,
 music, volumes, test), pause/resume, restart with the same config, reconfigure, end the game,
-and seat management. Releasing a seat during a game lets that player re-claim it from a new phone.
-The role stays with the seat.
+and seat management. Releasing a seat during a game lets that player re-claim it from a new phone,
+lets someone else take over, or hands it to a bot. The role stays with the seat.
+
+## Playing with bots
+
+The owner can fill empty seats with bots: tap **补满空位** in the lobby, or use ⋮ → 座位管理 to put a bot on one
+chosen seat. This is for trying the app alone, or playing a board with fewer people than seats. Bots
+run inside the server, so no extra phones or browser tabs are needed.
+
+- **They see only their own seat.** A bot decides from exactly the view a phone in its seat gets (its card,
+  its own checks, its pack), so it cannot cheat and does not leak anything.
+- **They handle every routine action.** They look at their card, act at night (knives,
+  checks, potions, guards, swaps, dances, 表白 …), sometimes run for sheriff, vote, and use 开枪 / 警徽 /
+  蒙面 when they die. They end their own speeches after a few seconds and wait for the judge's voice to
+  finish before acting.
+- **They play simply.** Bot wolves agree on one knife, follow a human teammate's pick, and mostly vote
+  together. Good bots vote for wolves they know about (their own 预言家 / 通灵师 checks, revealed cards) and
+  otherwise follow a shared hunch. Bots never 自爆 or 决斗 on their own, and they cannot talk, so a
+  bot 预言家 never shares what it found. With mostly bots at the table, the wolves usually win.
+- **People take priority.** In the lobby, tapping a bot's seat takes it over, and **全部移除** clears every
+  bot. During a game, the owner can hand any seat to a bot (⋮ → 座位管理 → 释放, then 机器人接管). The reverse
+  also works: release a bot's seat and a person claims it. Either way the newcomer keeps that seat's card
+  and what it learned so far.
+- To watch a game played only by bots, the owner leaves their seat (离开座位) and then fills every seat with bots
+  before dealing. The owner's phone still plays the judge's voice.
 
 ## Secrecy by design
 
@@ -234,7 +259,8 @@ npm run test:e2e       # full games in iPhone 13 / iPhone SE / Pixel 7 browsers
 Regenerate the README screenshots (plays scripted games against a local server, writes `docs/screenshots/`):
 
 ```bash
-npm run build && node scripts/screenshots.ts
+npm run build && node scripts/screenshots.ts                # all scenes
+npm run build && node scripts/screenshots.ts lobby knight   # only some: main, lobby, wolfgirl, knight, treasure
 ```
 
 Regenerate voice clips after editing `shared/audio.ts`:
@@ -275,15 +301,23 @@ Server environment: `PORT` (3000), `HOST`, `DATA_DIR` (room snapshots, default `
   prompt-derived action must be accepted, every game must end, and nothing the judge says at night may
   contain a seat number.
 - `tests/server/server.test.ts`: real WebSocket clients play a full game; per-client privacy,
-  reconnect, owner permissions, seat release/re-claim, owner link, restart persistence, origin check.
+  reconnect, owner permissions, seat release/re-claim, owner link, restart persistence, origin check, and
+  an owner playing a seat among bots.
+- `tests/server/bots.test.ts`: bot decisions on hand-made views (only their own turn, never a teammate,
+  following a human wolf, seer checks, potions, mandatory skills, 盗宝大师, death skills), seating and takeovers
+  in the lobby and mid-game, a person among bots, pause, restart persistence, waiting for the judge's
+  voice, and all-bot games on a fake clock: every preset plus 150 random custom tables, each played to the end
+  with no rejected bot action.
 - `tests/e2e/game.spec.ts`: Playwright on phone profiles: three browser players (owner/预言家, 女巫,
-  狼人) plus bots play a full game through the real UI, asserting no horizontal overflow and no
-  console errors; screenshots go to `test-results/shots/`.
+  狼人) plus scripted WebSocket players (`tests/e2e/bots.ts`) play a full game through the real UI,
+  asserting no horizontal overflow and no console errors; screenshots go to `test-results/shots/`.
 - `tests/e2e/boards.spec.ts`: the special roles of 预女猎白混 (混血儿, 白神), 机械狼通灵师 (机械狼, 通灵师) and
   盗宝大师 (盗宝大师 card choice, wounded 蒙面人) driven through the UI, each game played to the end.
 - `tests/e2e/newboards.spec.ts`: 狼美骑士 (charm, a duel from the 技能 menu), 假面舞会 (three dancers, 假面 verify +
   mask), 诡术之境 (a 魔术师 swap moving the knife, the 定序王子 voiding an exile), 魔幻对决 (a 狼术师 swap) and
   狼女孩 (首夜禁刀, confession, 自爆报复) through the UI, each game played to the end.
+- `tests/e2e/solo.spec.ts`: the owner fills the table with bots from the lobby (and adds or removes single
+  bots in the owner menu), then plays a whole game as 预言家 among them.
 
 ## Deploy your own instance
 

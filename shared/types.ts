@@ -54,6 +54,8 @@ export interface SeatView {
   viewedRole: boolean;
   /** seat released by the owner during a game, waiting to be re-claimed */
   claimable: boolean;
+  /** played by a built-in bot (server/bots.ts) */
+  bot: boolean;
 }
 
 export type SpeechContext = 'sheriff' | 'sheriffPk' | 'discussion' | 'exilePk' | 'lastWords' | 'prince';
@@ -343,6 +345,10 @@ export type OwnerCommand =
   | { type: 'reconfigure'; config: GameConfig }
   | { type: 'abort' }
   | { type: 'kick'; seat: number }
+  /** seat bots: on the given seats, or every empty seat (lobby) / every released seat (game) */
+  | { type: 'addBots'; seats?: number[] }
+  /** lobby: remove every bot */
+  | { type: 'removeBots' }
   | { type: 'order'; dir: 'cw' | 'ccw' }
   /** test hook (server started with TEST_HOOKS=1 only): deal fixed roles */
   | { type: 'debugDeal'; seats: string[]; buried?: string[] };

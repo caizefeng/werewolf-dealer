@@ -469,26 +469,44 @@ export function OwnerMenu({
           <div class="menu-sec">
             <div class="menu-title">座位管理</div>
             <p class="hint">
-              {g ? '游戏中释放座位后，该座位可以被重新认领（用于玩家换手机）。身份保持不变。' : '移出座位上的玩家。'}
+              {g
+                ? '游戏中释放座位后，该座位可以被重新认领（用于玩家换手机或换人），也可以交给机器人接管。身份保持不变。'
+                : '移出座位上的玩家或机器人，或在空座位上放一个机器人。'}
             </p>
             <div class="seat-admin">
-              {v.seats
-                .filter((x) => x.occupied)
-                .map((x) => (
+              {v.seats.map((x) => {
+                if (x.occupied)
+                  return (
+                    <button
+                      type="button"
+                      key={x.seat}
+                      class="menu-item small"
+                      onClick={() =>
+                        doCmd(
+                          g
+                            ? `释放${x.seat}号座位（${x.name}）？之后需要有人认领或让机器人接管。`
+                            : x.bot
+                              ? null
+                              : `把${x.name}移出${x.seat}号座位？`,
+                          () => ownerCmd({ type: 'kick', seat: x.seat }),
+                        )
+                      }
+                    >
+                      {x.seat}号 {x.name} {x.connected ? '' : '（离线）'} · {g ? '释放' : '移出'}
+                    </button>
+                  );
+                if (g && !x.claimable) return null;
+                return (
                   <button
                     type="button"
                     key={x.seat}
                     class="menu-item small"
-                    onClick={() =>
-                      doCmd(
-                        g ? `释放${x.seat}号座位（${x.name}）？之后需要该玩家重新认领。` : `把${x.name}移出${x.seat}号座位？`,
-                        () => ownerCmd({ type: 'kick', seat: x.seat }),
-                      )
-                    }
+                    onClick={() => doCmd(null, () => ownerCmd({ type: 'addBots', seats: [x.seat] }))}
                   >
-                    {x.seat}号 {x.name} {x.connected ? '' : '（离线）'} · {g ? '释放' : '移出'}
+                    {x.seat}号 {g ? '待认领 · 机器人接管' : '空位 · 放一个机器人'}
                   </button>
-                ))}
+                );
+              })}
             </div>
           </div>
         )}

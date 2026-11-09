@@ -6,6 +6,7 @@ import path from 'node:path';
 import { DEFAULT_RULES, playerCountOf, validateConfig, type GameConfig } from '../shared/config.ts';
 import { mechSkillFor, ROLES, type RoleId } from '../shared/roles.ts';
 import type { GameAction, GameView, OwnerCommand, PrivateView, RoomView, SeatView } from '../shared/types.ts';
+import { BOT_NAME, BOT_PREFIX, botMove, isBotId, type BotMove } from './bots.ts';
 import { Game, nightStepNames, type ClipDurations } from './game/engine.ts';
 import { randomSeed } from './game/rng.ts';
 import type { GameState } from './game/state.ts';
@@ -60,6 +61,10 @@ export class Room {
   game: Game | null = null;
   conns = new Set<Conn>();
   timer: ReturnType<typeof setTimeout> | null = null;
+  /** one pending decision per bot seat */
+  private botTimers = new Map<number, { key: string; timer: ReturnType<typeof setTimeout> }>();
+  /** decisions the engine rejected (seat|key): not retried, the phase's own timeout takes over */
+  private botFailed = new Set<string>();
   private mgr: RoomManager;
 
   constructor(data: RoomData, mgr: RoomManager) {
@@ -98,10 +103,12 @@ export class Room {
     if (!d.names[clientId]) return '请先设置昵称';
     const occupant = d.seats[seat - 1];
     if (d.status === 'lobby') {
-      if (occupant && occupant !== clientId) return '这个座位已经有人了';
+      // a bot gives its seat up to a person
+      if (occupant && occupant !== clientId && !isBotId(occupant)) return '这个座位已经有人了';
       const cur = this.seatOf(clientId);
       if (cur) d.seats[cur - 1] = null;
       d.seats[seat - 1] = clientId;
+      this.forgetBots();
       return null;
     }
     // during a game only seats released by the owner can be claimed
@@ -161,6 +168,7 @@ export class Room {
         d.status = 'lobby';
         d.game = null;
         this.game = null;
+        this.forgetBots();
         return null;
       }
       case 'abort': {
@@ -179,6 +187,30 @@ export class Room {
           d.seats[seat - 1] = null;
           if (!d.claimable.includes(seat)) d.claimable.push(seat);
         }
+        this.forgetBots();
+        return null;
+      }
+      case 'addBots': {
+        // lobby: empty seats; during a game: seats the owner released (a bot takes over the role)
+        const lobby = d.status === 'lobby';
+        const open = d.seats.map((_, i) => i + 1).filter((x) => (lobby ? !d.seats[x - 1] : d.claimable.includes(x)));
+        const want = cmd.seats === undefined ? open : cmd.seats;
+        if (!Array.isArray(want) || want.some((x) => !Number.isInteger(x)) || new Set(want).size !== want.length) return '座位无效';
+        if (want.length === 0) return lobby ? '没有空座位' : '没有待认领的座位';
+        if (want.some((x) => !open.includes(x))) return lobby ? '只能把机器人放在空座位上' : '机器人只能接管待认领的座位';
+        for (const x of want) {
+          const id = `${BOT_PREFIX}${newId(12)}`;
+          d.seats[x - 1] = id;
+          d.names[id] = BOT_NAME;
+        }
+        d.claimable = d.claimable.filter((x) => !want.includes(x));
+        return null;
+      }
+      case 'removeBots': {
+        if (d.status !== 'lobby') return '游戏进行中不能移除机器人（可以在座位管理中释放机器人的座位）';
+        if (!d.seats.some(isBotId)) return '没有机器人';
+        d.seats = d.seats.map((x) => (isBotId(x) ? null : x));
+        this.forgetBots();
         return null;
       }
       case 'debugDeal': {
@@ -190,6 +222,7 @@ export class Room {
         const roles: Partial<Record<RoleId, number>> = {};
         for (const r of [...seats, ...(buried ?? [])]) roles[r] = (roles[r] ?? 0) + 1;
         d.config = { ...d.config, roles };
+        this.botFailed.clear();
         d.gameNo += 1;
         this.game = Game.fromSeats(d.config, seats, buried, randomSeed(), this.mgr.dur);
         this.game.s.gameNo = d.gameNo;
@@ -205,8 +238,15 @@ export class Room {
     }
   }
 
+  /** drop the names of bots that no longer hold a seat */
+  private forgetBots(): void {
+    const d = this.data;
+    for (const id of Object.keys(d.names)) if (isBotId(id) && !d.seats.includes(id)) delete d.names[id];
+  }
+
   private newGame(): void {
     const d = this.data;
+    this.botFailed.clear();
     d.gameNo += 1;
     this.game = Game.create(d.config, randomSeed(), d.gameNo, this.mgr.dur);
     this.game.scale = this.mgr.scale;
@@ -220,9 +260,11 @@ export class Room {
     if (this.game) this.game.tick(now);
   }
 
+  /** arms the game timer and the bots' timers */
   schedule(): void {
     if (this.timer) clearTimeout(this.timer);
     this.timer = null;
+    this.planBots();
     const w = this.game?.nextWakeup();
     if (w == null) return;
     const delay = Math.max(0, w - Date.now()) + 5;
@@ -231,6 +273,73 @@ export class Room {
       this.tick(Date.now());
       this.changed();
     }, Math.min(delay, 2_000_000_000));
+  }
+
+  /** stops every timer (room deleted) */
+  dispose(): void {
+    if (this.timer) clearTimeout(this.timer);
+    this.timer = null;
+    for (const b of this.botTimers.values()) clearTimeout(b.timer);
+    this.botTimers.clear();
+  }
+
+  // ── bots ──
+
+  /** (re)arms one timer per bot that has a decision to make; a decision waits for the judge's voice */
+  planBots(): void {
+    const g = this.game;
+    const now = Date.now();
+    const voiceEnd = g ? this.voiceEnd(g, now) : 0;
+    const salt = `${this.id}:${this.data.gameNo}`;
+    this.data.seats.forEach((cid, i) => {
+      const seat = i + 1;
+      const cur = this.botTimers.get(seat);
+      let move: BotMove | null = null;
+      try {
+        move = g && isBotId(cid) ? botMove(this.view(cid!, now), salt) : null;
+      } catch (e) {
+        // a bot must never take the room (or the server) down: the phase's own timeout takes over
+        console.error(`bot ${seat} in room ${this.id}: decision failed`, e);
+      }
+      const key = move && !this.botFailed.has(`${seat}|${move.key}`) ? move.key : null;
+      if (cur && cur.key === key) return;
+      if (cur) {
+        clearTimeout(cur.timer);
+        this.botTimers.delete(seat);
+      }
+      if (!g || !move || !key) return;
+      const at = Math.max(now, voiceEnd) + move.think * g.k;
+      this.botTimers.set(seat, { key, timer: setTimeout(() => this.runBot(seat, key), at - now) });
+    });
+  }
+
+  private runBot(seat: number, key: string): void {
+    this.botTimers.delete(seat);
+    const cid = this.data.seats[seat - 1];
+    if (!this.game || !isBotId(cid)) return;
+    try {
+      const now = Date.now();
+      this.tick(now);
+      const move = botMove(this.view(cid!, now), `${this.id}:${this.data.gameNo}`);
+      if (move && move.key === key) {
+        const err = this.game.act(seat, move.action, now);
+        if (err) {
+          this.botFailed.add(`${seat}|${key}`);
+          console.warn(`bot ${seat} in room ${this.id}: ${err} (${JSON.stringify(move.action)})`);
+        }
+      }
+    } catch (e) {
+      this.botFailed.add(`${seat}|${key}`);
+      console.error(`bot ${seat} in room ${this.id}: action failed`, e);
+    }
+    this.changed();
+  }
+
+  /** when the judge's voice on the owner's phone finishes the lines announced so far */
+  private voiceEnd(g: Game, now: number): number {
+    let end = 0;
+    for (const a of g.s.announcements) if (a.at > now - 120_000) end = Math.max(end, a.at) + g.clipsDuration(a.clips);
+    return end;
   }
 
   /** after any mutation: reschedule, persist, push views */
@@ -270,11 +379,12 @@ export class Room {
     const seats: SeatView[] = d.seats.map((cid, i) => {
       const seat = i + 1;
       const pub = g ? g.publicSeatInfo(seat) : null;
+      const bot = isBotId(cid);
       return {
         seat,
         name: cid ? (d.names[cid] ?? null) : null,
         occupied: !!cid,
-        connected: cid ? this.connected(cid) : false,
+        connected: cid ? bot || this.connected(cid) : false,
         owner: cid ? this.isOwner(cid) : false,
         alive: pub ? pub.alive : true,
         sheriff: g ? g.s.sheriff === seat : false,
@@ -282,6 +392,7 @@ export class Room {
         deadNote: pub ? pub.deadNote : null,
         viewedRole: g ? g.p(seat).viewed : false,
         claimable: d.claimable.includes(seat),
+        bot,
       };
     });
     return {
@@ -481,7 +592,7 @@ export class RoomManager {
     for (const [id, room] of this.rooms) {
       if (room.conns.size > 0) continue;
       if (now - room.data.touchedAt < ttl) continue;
-      if (room.timer) clearTimeout(room.timer);
+      room.dispose();
       this.rooms.delete(id);
       if (this.dataDir) fs.rmSync(path.join(this.dataDir, 'rooms', `${id}.json`), { force: true });
     }

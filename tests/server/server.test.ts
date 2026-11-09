@@ -269,6 +269,50 @@ describe('server', () => {
     for (const c of [...clients, newcomer]) await c.close();
   });
 
+  it('the owner fills the table with bots and plays a game among them', async () => {
+    const created = await post(srv.port, '/api/rooms', { clientId: ids[0], config: CFG, name: '房主' });
+    const room = created.body.roomId as string;
+    const me = await Client.connect(srv.port, room, ids[0], '房主');
+    me.send({ t: 'sit', seat: 1 });
+    await me.waitFor((v) => v.you.seat === 1);
+    me.send({ t: 'owner', cmd: { type: 'addBots' } });
+    const full = await me.waitFor((v) => v.seats.every((s) => s.occupied));
+    expect(full.seats.map((s) => s.bot)).toEqual([false, true, true, true, true, true]);
+    expect(full.seats.slice(1).every((s) => s.name === '机器人' && s.connected && !s.owner)).toBe(true);
+    // nobody can connect as a bot: bot ids are not valid client ids
+    const fake = new WebSocket(`ws://127.0.0.1:${srv.port}/ws`, { headers: { origin: `http://127.0.0.1:${srv.port}` } });
+    const reply = await new Promise<ServerMsg>((r) => {
+      fake.on('open', () => fake.send(JSON.stringify({ t: 'hello', room, client: `bot:${'x'.repeat(16)}`, name: 'x' })));
+      fake.on('message', (raw) => r(JSON.parse(String(raw))));
+    });
+    expect(reply).toEqual({ t: 'error', message: '客户端标识无效' });
+    fake.close();
+    // the bots look at their cards by themselves
+    me.send({ t: 'owner', cmd: { type: 'deal' } });
+    await me.waitFor((v) => v.game?.phase.kind === 'dealt' && v.game.phase.viewed === 5);
+    // I play my seat; the bots play theirs
+    let last = '';
+    (me as any).listeners.add(() => {
+      const v = me.view;
+      const g = v?.game;
+      if (!g?.you) return;
+      const ph = g.phase;
+      let a: GameAction | null = null;
+      if (ph.kind === 'speech' && ph.order[ph.idx] === 1) a = { type: 'endSpeech' };
+      else if (g.you.prompt) a = botAction(g.you.prompt, 1, v!);
+      const key = JSON.stringify([g.day, g.night, ph.kind, (ph as any).step ?? (ph as any).context ?? '', (ph as any).idx ?? '', a]);
+      if (a && key !== last) {
+        last = key;
+        me.act(a);
+      }
+    });
+    me.send({ t: 'owner', cmd: { type: 'start' } });
+    const end = await me.waitFor((v) => v.game?.time === 'ended', 60000);
+    expect(end.game!.result!.players.filter((p) => p.name === '机器人').length).toBe(5);
+    expect(me.errors).toEqual([]);
+    await me.close();
+  }, 90000);
+
   it('owner link grants ownership on another device', async () => {
     const created = await post(srv.port, '/api/rooms', { clientId: ids[0], config: CFG, name: '房主' });
     const room = created.body.roomId as string;

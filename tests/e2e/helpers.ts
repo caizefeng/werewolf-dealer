@@ -45,11 +45,11 @@ export async function newPlayer(browser: Browser, ti: TestInfo, url: string, nam
   return p;
 }
 
-/** keeps clicking "end my speech" style buttons on a page */
-export function autoSpeech(p: Page): () => void {
+/** keeps clicking "end my speech" style buttons on a page; the returned stop() resolves once the loop is over */
+export function autoSpeech(p: Page): () => Promise<void> {
   let on = true;
   const loop = async () => {
-    while (on) {
+    while (on && !p.isClosed()) {
       for (const name of ['结束发言', '遗言结束']) {
         const b = p.getByRole('button', { name, exact: true });
         try {
@@ -58,12 +58,14 @@ export function autoSpeech(p: Page): () => void {
           /* raced with a state change */
         }
       }
-      await p.waitForTimeout(250);
+      // the page closes when the test ends; a wait cut short by that is not an error
+      await p.waitForTimeout(250).catch(() => {});
     }
   };
-  void loop();
+  const done = loop();
   return () => {
     on = false;
+    return done;
   };
 }
 

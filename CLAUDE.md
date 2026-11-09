@@ -20,7 +20,8 @@ shared/            # used by server and client (TypeScript, .ts imports)
   types.ts         # wire protocol + view types (RoomView, GameView, Prompt, GameAction …)
 server/
   index.ts         # http (static + /api) + ws (/ws), rate limits, CSP; startServer() for tests
-  rooms.ts         # Room (lobby, owners, seats, timers, persistence, per-client views), RoomManager
+  rooms.ts         # Room (lobby, owners, seats, timers, persistence, per-client views, bot timers), RoomManager
+  bots.ts          # built-in bot players: botMove(view of its own seat) → next action
   game/engine.ts   # Game: deterministic state machine (night steps, day stages, votes, victory, prompts)
   game/resolve.ts  # pure night settlement (knife/guard/save/poison/dream)
   game/deal.ts     # dealing incl. 盗宝大师 buried cards
@@ -35,8 +36,11 @@ tests/engine/      # vitest: resolve, flow, special (机械狼/盗宝/secrecy), 
                    #         newroles (骑士/狼美人/舞者/假面/魔术师/诡术师/狼术师/定序王子/狼女孩 interactions),
                    #         fuzz (~5,900 random games: every preset, 400 per special board, 1,500 random custom
                    #         tables; night announcements must never contain a seat number)
-tests/server/      # vitest: real ws clients play a game, privacy, reconnect, persistence
-tests/e2e/         # Playwright phone profiles (game, boards, newboards specs); bots.ts = ws bot players
+tests/engine/tables.ts  # random custom tables shared by the fuzz and bot tests
+tests/server/      # vitest: real ws clients play a game, privacy, reconnect, persistence; bots (decisions,
+                   #         seating/takeovers, all-bot games on a fake clock)
+tests/e2e/         # Playwright phone profiles (game, boards, newboards, solo specs); bots.ts = scripted ws test
+                   #         players (not the built-in bots)
 scripts/           # gen_audio.py (edge-tts), smoke.ts (live smoke test), find-overflow.mjs,
                    # screenshots.ts (README screenshots → docs/screenshots)
 deploy/            # deploy.sh, deploy.env.example, werewolf.caddy.template (deploy.env is git-ignored)
@@ -53,7 +57,7 @@ npm run build        # client → dist/client
 npm run test:e2e     # playwright (builds, starts server with TIME_SCALE=0.3 TEST_HOOKS=1)
 node scripts/smoke.ts <board> <base-url>                       # smoke test: 12 bots play night 1 on an instance
 node scripts/find-overflow.mjs http://localhost:3000/ 375      # list elements wider than a phone
-npm run build && node scripts/screenshots.ts                   # regenerate the README screenshots
+npm run build && node scripts/screenshots.ts [scene…]          # regenerate README screenshots (main lobby wolfgirl knight treasure)
 deploy/deploy.sh     # deploy an instance (reads git-ignored deploy/deploy.env)
 ```
 Node ≥ 22.18 runs `server/*.ts` directly (type stripping) – keep server/shared code to erasable TS
@@ -85,9 +89,17 @@ syntax and import with explicit `.ts` extensions.
   the prince is dead); 骑士 duels only in `duelWindow()` (discussion/exilePk speeches); a won duel clears
   `dayQueue` and `resume`.
 - Public audio/text must never include private info; tests assert this.
+- Built-in bots: a seat whose client id starts with `bot:` (real ids can't contain `:`). The room plays them:
+  `Room.planBots()` (run from `schedule()`, i.e. after every change and on restore) asks `botMove()` for each
+  bot's next move, computed only from `room.view(botId)`, and arms one timer per bot keyed by the decision.
+  The timer starts after the judge's voice ends, then waits the bot's thinking time. When it fires, the move is
+  recomputed and applied only if the key still matches. A move the engine rejects is not retried. Decisions are seeded per
+  (room, game, seat, decision), so re-planning never changes a choice. A new prompt kind or action needs a case in
+  `server/bots.ts` and a test in `tests/server/bots.test.ts`; all-bot games must keep ending with no rejected move.
 - Adding a role: `shared/roles.ts` (+ icon in `client/src/ui.tsx`), step in `stepsForNight`,
   `STEP_*` maps, prompt in `nightPrompt`, action in `nightAction`, settlement in `nightInputs`,
-  clips in `shared/audio.ts` (then regenerate audio), tests, README rules section.
+  clips in `shared/audio.ts` (then regenerate audio), tests, README rules section, and a case in
+  `server/bots.ts` when the role brings a new prompt kind or needs smarter targets than a random pick.
 
 ## Audio
 `scripts/gen_audio.py` (venv `scripts/.venv`, `pip install edge-tts`; needs node + ffmpeg) renders

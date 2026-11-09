@@ -1,8 +1,9 @@
 // Regenerates the README screenshots (docs/screenshots/*.jpg).
 // Starts a local server with test hooks, then plays a scripted 预女猎白 game: two phone browsers
-// (小鹿 = 预言家, 大熊 = 狼人) and ten bots with ordinary nicknames. It captures the main screens on the way,
-// plus one screen each from short 狼女孩, 狼美骑士 and 盗宝大师 games.
-//   npm run build && node scripts/screenshots.ts
+// (小鹿 = 预言家, 大熊 = 狼人) and ten test bots with ordinary nicknames. It captures the main screens on the
+// way, the owner's lobby with built-in bots, and one screen each from short 狼女孩, 狼美骑士 and 盗宝大师 games.
+//   npm run build && node scripts/screenshots.ts                 # every scene
+//   npm run build && node scripts/screenshots.ts lobby knight    # only these scenes
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -121,11 +122,10 @@ async function mainGame(): Promise<void> {
   await until(seer, '创建房间');
   await shot(seer, 'home');
 
-  // ── lobby: players take seats ──
+  // ── players take seats (the lobby screenshot is its own scene) ──
   const r = await newRoom('ynlb', strategy);
   await r.addBots([2, 4, 5, 6, 7]);
   await r.join(seer, SEER);
-  await shot(seer, 'lobby', true);
   await r.addBots([9, 10, 11, 12]);
   const wolf = await phone();
   await r.join(wolf, WOLF);
@@ -202,6 +202,29 @@ async function mainGame(): Promise<void> {
   await shot(seer, 'result', true);
 }
 
+/** the owner's lobby: three friends joined by link, the built-in bots fill the other seats */
+async function lobbyShot(): Promise<void> {
+  const p = await phone();
+  await p.goto(`${BASE}/`);
+  await p.getByRole('button', { name: /^预女猎白/ }).first().click();
+  await p.getByPlaceholder('其他玩家看到的名字').fill(NAMES[1]);
+  await p.getByRole('button', { name: '创建房间' }).click();
+  await p.waitForURL(/\/r\/[a-z0-9]+$/);
+  await p.getByRole('button', { name: '1号 空位', exact: true }).click();
+  await until(p, '你坐在');
+  const roomId = p.url().split('/r/')[1];
+  for (const seat of [3, 6, 8]) {
+    const b = new Bot(clientId(`friend${seat}`));
+    await b.connect(PORT, roomId, NAMES[seat]);
+    b.send({ t: 'sit', seat });
+    bots.push(b);
+  }
+  await until(p, '4/12 已入座');
+  await p.getByRole('button', { name: '补满空位（8）' }).click();
+  await until(p, '玩家已到齐');
+  await shot(p, 'lobby', true);
+}
+
 /** 狼女孩: the pack only meets on night 1 (首夜禁刀), then she picks whom to confess to */
 async function wolfgirlShot(): Promise<void> {
   const seats: RoleId[] = ['villager', 'seer', 'poisoner', 'hunter', 'wolfgirl', 'guard', 'wolf', 'wolf', 'wolf', 'villager', 'villager', 'villager'];
@@ -244,11 +267,18 @@ async function main(): Promise<void> {
     if (i > 80) throw new Error('server did not start');
     await sleep(250);
   }
+  const scenes: Record<string, () => Promise<void>> = {
+    main: mainGame,
+    lobby: lobbyShot,
+    wolfgirl: wolfgirlShot,
+    knight: knightShot,
+    treasure: treasureShot,
+  };
+  const wanted = process.argv.slice(2);
+  const unknown = wanted.filter((w) => !(w in scenes));
+  if (unknown.length) throw new Error(`unknown scene(s): ${unknown.join(', ')}; scenes: ${Object.keys(scenes).join(', ')}`);
   browser = await webkit.launch();
-  await mainGame();
-  await wolfgirlShot();
-  await knightShot();
-  await treasureShot();
+  for (const [name, run] of Object.entries(scenes)) if (!wanted.length || wanted.includes(name)) await run();
 }
 
 main()

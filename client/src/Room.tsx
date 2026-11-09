@@ -292,11 +292,12 @@ function SeatGrid({ v }: { v: RoomView }) {
     if (!v.you.name) return;
     if (lobby) {
       if (s.seat === me) return;
-      if (!s.occupied) send({ t: 'sit', seat: s.seat });
+      // a bot gives its seat up to whoever taps it
+      if (!s.occupied || s.bot) send({ t: 'sit', seat: s.seat });
       return;
     }
     if (s.claimable && !me) {
-      if (confirm(`确定认领${s.seat}号座位吗？只有原本坐在这里的玩家才能认领。`)) send({ t: 'sit', seat: s.seat });
+      if (confirm(`确定认领${s.seat}号座位吗？你将接手这个座位的身份继续游戏。`)) send({ t: 'sit', seat: s.seat });
     }
   };
   return (
@@ -304,12 +305,13 @@ function SeatGrid({ v }: { v: RoomView }) {
       {v.seats.map((s) => {
         const st = seatStatus(v, s);
         const mine = s.seat === me;
+        // bot seats can be taken too, but only empty seats are highlighted
         const clickable = (lobby && !s.occupied && !!v.you.name) || (s.claimable && !me);
         return (
           <button
             type="button"
             key={s.seat}
-            class={`seat${mine ? ' me' : ''}${s.occupied ? '' : ' empty'}${clickable ? ' clickable' : ''} ${st.cls.join(' ')}${s.revealed ? ` ${factionClass(s.revealed)}` : ''}`}
+            class={`seat${mine ? ' me' : ''}${s.occupied ? '' : ' empty'}${s.bot ? ' bot' : ''}${clickable ? ' clickable' : ''} ${st.cls.join(' ')}${s.revealed ? ` ${factionClass(s.revealed)}` : ''}`}
             onClick={() => onTap(s)}
             aria-label={`${s.seat}号 ${s.name ?? '空位'}`}
           >
@@ -317,6 +319,11 @@ function SeatGrid({ v }: { v: RoomView }) {
             {s.sheriff && <span class="seat-badge sheriff" title="警长">警</span>}
             {s.occupied && !s.connected && <span class="seat-offline" title="离线" />}
             <span class="seat-name">
+              {s.bot && (
+                <i class="bot-mark">
+                  <RoleIcon icon="bot" size={12} />
+                </i>
+              )}
               {s.name ?? (s.claimable ? '待认领' : lobby ? '空位' : '—')}
               {s.owner && <i class="owner-mark" title="房主">主</i>}
             </span>

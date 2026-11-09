@@ -158,7 +158,7 @@ function LobbyPanel({ v, openModal }: { v: RoomView; openModal: (m: ModalKind) =
           </Btn>
         </div>
       ) : (
-        <p class="hint strong">点击上方的空座位入座</p>
+        <p class="hint strong">{v.seats.some((s) => s.bot) ? '点击上方的空座位或机器人的座位入座' : '点击上方的空座位入座'}</p>
       )}
       {v.you.owner ? (
         <div class="btn-row">
@@ -173,6 +173,36 @@ function LobbyPanel({ v, openModal }: { v: RoomView; openModal: (m: ModalKind) =
       ) : (
         <p class="muted">等待房主发牌…</p>
       )}
+      {v.you.owner && <BotControls v={v} />}
+    </div>
+  );
+}
+
+/** owner: fill the table with bots (testing alone, or fewer people than seats) */
+function BotControls({ v }: { v: RoomView }) {
+  const empty = v.seats.filter((s) => !s.occupied).length;
+  const bots = v.seats.filter((s) => s.bot).length;
+  return (
+    <div class="bot-box">
+      <div class="row between">
+        <span class="bot-title">
+          <RoleIcon icon="bot" size={18} />
+          机器人{bots ? ` · ${bots}个` : ''}
+        </span>
+        <div class="row">
+          {bots > 0 && (
+            <Btn small kind="ghost" onClick={() => ownerCmd({ type: 'removeBots' })}>
+              全部移除
+            </Btn>
+          )}
+          <Btn small disabled={!empty} onClick={() => ownerCmd({ type: 'addBots' })}>
+            {empty ? `补满空位（${empty}）` : '没有空位'}
+          </Btn>
+        </div>
+      </div>
+      <p class="hint">
+        人数不够或自己测试时，用机器人坐满空位。机器人会自己看牌、夜间行动、上警、投票和结束发言，但不会说话；玩家点击机器人的座位即可替换它。
+      </p>
     </div>
   );
 }
