@@ -1,4 +1,4 @@
-import { expect, type Browser, type Page, type TestInfo } from '@playwright/test';
+import { expect, type Browser, type BrowserContext, type Page, type TestInfo } from '@playwright/test';
 import { Bot, type Strategy } from './bots.ts';
 
 export const PORT = 3317;
@@ -16,6 +16,14 @@ export function watchErrors(p: Page, errors: string[]): void {
   });
 }
 
+const playerContexts = new Set<BrowserContext>();
+
+/** closes the extra player browsers (use as `test.afterEach(closePlayers)`) */
+export async function closePlayers(): Promise<void> {
+  for (const c of playerContexts) await c.close().catch(() => {});
+  playerContexts.clear();
+}
+
 export async function newPlayer(browser: Browser, ti: TestInfo, url: string, name: string, seat: number): Promise<Page> {
   const u = ti.project.use;
   const ctx = await browser.newContext({
@@ -26,6 +34,7 @@ export async function newPlayer(browser: Browser, ti: TestInfo, url: string, nam
     hasTouch: u.hasTouch,
     baseURL: u.baseURL,
   });
+  playerContexts.add(ctx);
   const p = await ctx.newPage();
   await p.goto(url);
   await expect(p.getByText('请输入你的昵称')).toBeVisible();

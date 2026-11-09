@@ -1,4 +1,4 @@
-import { expect, test, type Browser, type Page, type TestInfo } from '@playwright/test';
+import { expect, test, type Browser, type BrowserContext, type Page, type TestInfo } from '@playwright/test';
 import { Bot } from './bots.ts';
 
 const PORT = 3317;
@@ -11,6 +11,11 @@ async function shot(page: Page, name: string, ti: TestInfo): Promise<void> {
   await page.screenshot({ path: `test-results/shots/${ti.project.name}/${name}.png`, animations: 'disabled' });
 }
 
+const contexts: BrowserContext[] = [];
+test.afterEach(async () => {
+  for (const c of contexts.splice(0)) await c.close().catch(() => {});
+});
+
 async function newPlayer(browser: Browser, ti: TestInfo, url: string, name: string, seat: number): Promise<Page> {
   const u = ti.project.use;
   const ctx = await browser.newContext({
@@ -21,6 +26,7 @@ async function newPlayer(browser: Browser, ti: TestInfo, url: string, name: stri
     hasTouch: u.hasTouch,
     baseURL: u.baseURL,
   });
+  contexts.push(ctx);
   const p = await ctx.newPage();
   await p.goto(url);
   await expect(p.getByText('请输入你的昵称')).toBeVisible();

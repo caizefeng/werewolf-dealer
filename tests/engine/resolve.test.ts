@@ -36,12 +36,12 @@ describe('night settlement', () => {
   });
 
   it('guard does not block poison', () => {
-    expect(deaths({ poisons: [4], guards: [{ target: 4, blocksPoison: false }] })).toEqual({ 4: ['poison'] });
+    expect(deaths({ poisons: [{ target: 4, witch: true }], guards: [{ target: 4, blocksPoison: false }] })).toEqual({ 4: ['poison'] });
   });
 
   it('机械守卫 blocks poison and knife', () => {
     expect(
-      deaths({ poisons: [4], knives: [{ target: 4, piercing: false }], guards: [{ target: 4, blocksPoison: true }] }),
+      deaths({ poisons: [{ target: 4, witch: true }], knives: [{ target: 4, piercing: false }], guards: [{ target: 4, blocksPoison: true }] }),
     ).toEqual({});
   });
 
@@ -71,8 +71,8 @@ describe('night settlement', () => {
 
   it('dream protects from poison only when the rule says so', () => {
     const d = [{ by: 9, target: 6, consecutive: false }];
-    expect(deaths({ poisons: [6], dreams: d, dreamBlocksPoison: true })).toEqual({});
-    expect(deaths({ poisons: [6], dreams: d, dreamBlocksPoison: false })).toEqual({ 6: ['poison'] });
+    expect(deaths({ poisons: [{ target: 6, witch: true }], dreams: d, dreamBlocksPoison: true })).toEqual({});
+    expect(deaths({ poisons: [{ target: 6, witch: true }], dreams: d, dreamBlocksPoison: false })).toEqual({ 6: ['poison'] });
   });
 
   it('consecutive dream kills (even if protected otherwise)', () => {
@@ -85,7 +85,7 @@ describe('night settlement', () => {
     expect(
       deaths({ knives: [{ target: 9, piercing: false }], dreams: [{ by: 9, target: 6, consecutive: false }] }),
     ).toEqual({ 9: ['knife'], 6: ['dream'] });
-    expect(deaths({ poisons: [9], dreams: [{ by: 9, target: 6, consecutive: false }] })).toEqual({
+    expect(deaths({ poisons: [{ target: 9, witch: true }], dreams: [{ by: 9, target: 6, consecutive: false }] })).toEqual({
       9: ['poison'],
       6: ['dream'],
     });
@@ -98,6 +98,6 @@ describe('night settlement', () => {
   });
 
   it('knife plus poison on the same player records both causes', () => {
-    expect(deaths({ knives: [{ target: 2, piercing: false }], poisons: [2] })).toEqual({ 2: ['knife', 'poison'] });
+    expect(deaths({ knives: [{ target: 2, piercing: false }], poisons: [{ target: 2, witch: true }] })).toEqual({ 2: ['knife', 'poison'] });
   });
 });

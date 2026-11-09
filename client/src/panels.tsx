@@ -3,6 +3,7 @@ import { ROLES } from '../../shared/roles.ts';
 import type {
   DeathSkillPrompt,
   GameAction,
+  MasquePrompt,
   OwnerCommand,
   PickPrompt,
   RoomView,
@@ -74,11 +75,16 @@ export function SeatPicker({
 /** identity of the current prompt: changes when a new decision is asked for */
 function promptKey(v: RoomView): string {
   const g = v.game;
-  const p = g?.you?.prompt;
-  if (!g || !p) return '';
+  if (!g) return '';
   const ph = g.phase;
+  // my turn to speak is a decision too: 结束发言 must not stay hidden under the bottom bar
+  if (ph.kind === 'speech' && ph.order[ph.idx] === v.you.seat) return `${g.gameNo}-${g.day}-speech-${ph.context}-${ph.idx}`;
+  const p = g.you?.prompt;
+  if (!p) return '';
   const sub = ph.kind === 'night' ? ph.step : ph.kind === 'vote' || ph.kind === 'speech' ? ph.context : '';
-  return `${g.gameNo}-${g.day}-${g.night}-${ph.kind}-${sub}-${p.kind}`;
+  // two-stage panels grow after their first answer: bring the second stage into view as well
+  const stage = p.kind === 'masque' && p.verified ? '-2' : '';
+  return `${g.gameNo}-${g.day}-${g.night}-${ph.kind}-${sub}-${p.kind}${stage}`;
 }
 
 export function ActionArea({ v, openModal }: { v: RoomView; openModal: (m: ModalKind) => void }) {
@@ -107,7 +113,10 @@ function ActionBody({ v, openModal }: { v: RoomView; openModal: (m: ModalKind) =
   if (ph.kind === 'dealt') body = <DealtPanel v={v} openModal={openModal} />;
   else if (ph.kind === 'ended') body = <ResultPanel v={v} />;
   else if (ph.kind === 'night') {
-    if (p && (p.kind === 'pick' || p.kind === 'wolves' || p.kind === 'witch' || p.kind === 'treasure' || p.kind === 'status')) {
+    if (
+      p &&
+      (p.kind === 'pick' || p.kind === 'wolves' || p.kind === 'witch' || p.kind === 'treasure' || p.kind === 'status' || p.kind === 'masque')
+    ) {
       const key = `${g.gameNo}-${g.night}-${ph.step}`;
       body = <NightPrompt key={key} v={v} p={p} />;
     } else body = <NightIdle v={v} />;
@@ -117,6 +126,7 @@ function ActionBody({ v, openModal }: { v: RoomView; openModal: (m: ModalKind) =
   else if (ph.kind === 'vote') body = <VotePanel key={`${g.gameNo}-${g.day}-${ph.context}`} v={v} />;
   else if (ph.kind === 'deathSkills') body = <DeathSkillsPanel key={`${g.gameNo}-${g.day}`} v={v} />;
   else if (ph.kind === 'orderChoice') body = <OrderPanel v={v} />;
+  else if (ph.kind === 'princeWindow') body = <PrincePanel v={v} />;
   else body = <InterludePanel v={v} />;
   return (
     <>
@@ -204,8 +214,16 @@ function NightIdle({ v }: { v: RoomView }) {
   );
 }
 
-function NightPrompt({ v, p }: { v: RoomView; p: PickPrompt | WolvesPrompt | WitchPrompt | TreasurePrompt | StatusPrompt }) {
+function NightPrompt({
+  v,
+  p,
+}: {
+  v: RoomView;
+  p: PickPrompt | WolvesPrompt | WitchPrompt | TreasurePrompt | StatusPrompt | MasquePrompt;
+}) {
   switch (p.kind) {
+    case 'masque':
+      return <MasquePanel v={v} p={p} />;
     case 'pick':
       return <PickPanel v={v} p={p} />;
     case 'wolves':
@@ -250,12 +268,17 @@ function PickPanel({ v, p }: { v: RoomView; p: PickPrompt }) {
             selected={sel}
             max={p.max}
             onChange={setSel}
-            tags={p.max === 2 && sel.length === 2 ? { [sel[1]]: '破盾刀' } : undefined}
+            tags={p.step === 'mechKill' && p.max === 2 && sel.length === 2 ? { [sel[1]]: '破盾刀' } : undefined}
           />
+          {p.min > 1 && (
+            <p class="muted">
+              已选 {sel.length}/{p.min}
+            </p>
+          )}
           <div class="btn-row">
             <Btn
               kind="primary"
-              disabled={sel.length === 0}
+              disabled={sel.length < Math.max(1, p.min)}
               onClick={() => act({ type: 'pick', step: p.step, targets: sel })}
             >
               {p.confirmLabel}
@@ -284,6 +307,16 @@ function WolvesPanel({ v, p }: { v: RoomView; p: WolvesPrompt }) {
   for (const [t, n] of Object.entries(counts)) pickTag[Number(t)] = `队友×${n}`;
   const my = p.myPick;
   const choose = (t: number | null, confirm: boolean) => act({ type: 'wolfPick', target: t, confirm });
+  const confirmations = (
+    <div class="wolf-picks">
+      {p.picks.map((x) => (
+        <span key={x.seat} class={x.confirmed ? 'ok' : ''}>
+          {x.seat}号：{p.noKnife ? (x.confirmed ? '已确认' : '未确认') : x.target === undefined ? '未选择' : x.target === null ? '空刀' : `${x.target}号`}
+          {x.confirmed ? ' ✓' : ''}
+        </span>
+      ))}
+    </div>
+  );
   return (
     <div class="panel action night-act wolves">
       <h3>{p.title}</h3>
@@ -298,8 +331,18 @@ function WolvesPanel({ v, p }: { v: RoomView; p: WolvesPrompt }) {
       </div>
       {p.locked ? (
         <div class="submitted">
-          <p class="result">狼队已确定：{p.final == null ? '空刀' : `击杀${p.final}号`}</p>
+          <p class="result">{p.noKnife ? '狼队已互相确认身份（首夜禁刀）' : `狼队已确定：${p.final == null ? '空刀' : `击杀${p.final}号`}`}</p>
         </div>
+      ) : p.noKnife ? (
+        <>
+          <p class="muted">{p.lines[0]}</p>
+          <div class="btn-row">
+            <Btn kind="primary" disabled={p.myConfirmed} onClick={() => choose(null, true)}>
+              {p.myConfirmed ? '已确认，等待队友' : '确认'}
+            </Btn>
+          </div>
+          {confirmations}
+        </>
       ) : (
         <>
           <p class="muted">{p.lines[0]}</p>
@@ -318,14 +361,7 @@ function WolvesPanel({ v, p }: { v: RoomView; p: WolvesPrompt }) {
               空刀
             </Btn>
           </div>
-          <div class="wolf-picks">
-            {p.picks.map((x) => (
-              <span key={x.seat} class={x.confirmed ? 'ok' : ''}>
-                {x.seat}号：{x.target === undefined ? '未选择' : x.target === null ? '空刀' : `${x.target}号`}
-                {x.confirmed ? ' ✓' : ''}
-              </span>
-            ))}
-          </div>
+          {confirmations}
         </>
       )}
     </div>
@@ -483,6 +519,96 @@ function TreasurePanel({ v, p }: { v: RoomView; p: TreasurePrompt }) {
   );
 }
 
+function MasquePanel({ v, p }: { v: RoomView; p: MasquePrompt }) {
+  const [verify, setVerify] = useState<number[]>([]);
+  const [mask, setMask] = useState<number[]>([]);
+  const [kill, setKill] = useState<number[]>([]);
+  if (p.submitted) {
+    return (
+      <div class="panel action night-act">
+        <h3>假面</h3>
+        <div class="submitted">
+          {p.verified && <p class="result">{p.verified.result}</p>}
+          <p>面具：{p.submitted.mask != null ? `${p.submitted.mask}号` : '没有赐予'}</p>
+          {p.canKill && <p>击杀：{p.submitted.kill != null ? `${p.submitted.kill}号` : '不刀人'}</p>}
+        </div>
+      </div>
+    );
+  }
+  const needVerify = !p.verified && p.verifyOptions.length > 0;
+  return (
+    <div class="panel action night-act">
+      <h3>{p.title}</h3>
+      {p.lines.map((l) => (
+        <p class="muted" key={l}>
+          {l}
+        </p>
+      ))}
+      {needVerify ? (
+        <>
+          <p>① 选择验证目标（是否在舞池中）：</p>
+          <SeatPicker v={v} options={p.verifyOptions} selected={verify} onChange={setVerify} />
+          <div class="btn-row">
+            <Btn kind="primary" disabled={!verify.length} onClick={() => act({ type: 'masqueVerify', target: verify[0] })}>
+              验证{verify.length ? ` ${verify[0]}号` : ''}
+            </Btn>
+            <Btn kind="ghost" onClick={() => act({ type: 'masqueVerify', target: null })}>
+              不验证
+            </Btn>
+          </div>
+        </>
+      ) : (
+        <>
+          {p.verified && <p class="result">{p.verified.result}</p>}
+          {p.maskOptions.length > 0 && (
+            <>
+              <p>② 选择赐予面具的目标（可以不给）：</p>
+              <SeatPicker v={v} options={p.maskOptions} selected={mask} onChange={setMask} />
+            </>
+          )}
+          {p.canKill && (
+            <>
+              <p>选择击杀目标（可以不刀）：</p>
+              <SeatPicker v={v} options={p.killOptions} selected={kill} onChange={setKill} />
+            </>
+          )}
+          <Btn kind="primary" onClick={() => act({ type: 'masqueAct', mask: mask[0] ?? null, kill: kill[0] ?? null })}>
+            确认
+          </Btn>
+        </>
+      )}
+    </div>
+  );
+}
+
+function PrincePanel({ v }: { v: RoomView }) {
+  const g = v.game!;
+  if (g.phase.kind !== 'princeWindow') return null;
+  const p = g.you?.prompt?.kind === 'prince' ? g.you.prompt : null;
+  return (
+    <div class="panel action">
+      <p class="announce">{g.phase.target}号玩家得票最多。</p>
+      {p?.decided ? (
+        <p class="muted">你选择不发动技能，等待放逐结果…</p>
+      ) : p ? (
+        <>
+          <p>你是定序王子：可以翻牌发动技能，本次放逐作废，你发言后重新投票（整局一次）。</p>
+          <div class="btn-row">
+            <Btn kind="gold" onClick={() => confirm('确定翻牌发动定序王子技能吗？') && act({ type: 'prince', use: true })}>
+              发动技能
+            </Btn>
+            <Btn kind="ghost" onClick={() => act({ type: 'prince', use: false })}>
+              不发动
+            </Btn>
+          </div>
+        </>
+      ) : (
+        <p class="muted">等待定序王子确认是否发动技能…</p>
+      )}
+    </div>
+  );
+}
+
 function StatusPanel({ p }: { p: StatusPrompt }) {
   return (
     <div class="panel action night-act">
@@ -546,6 +672,7 @@ function SpeechPanel({ v }: { v: RoomView }) {
     discussion: '发言',
     exilePk: '放逐PK发言',
     lastWords: '遗言',
+    prince: '定序王子发言',
   }[ph.context];
   const lastAnn = g.announcements[g.announcements.length - 1];
   return (
@@ -879,6 +1006,8 @@ function OwnerBar({ v }: { v: RoomView }) {
               ? '跳过技能确认'
               : ph.kind === 'orderChoice'
                 ? '随机发言顺序'
+                : ph.kind === 'princeWindow'
+                  ? '结束等待'
                 : ph.kind === 'interlude'
                   ? '下一步'
                   : null;

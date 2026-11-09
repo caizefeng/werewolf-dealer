@@ -13,11 +13,20 @@ export type RoleId =
   | 'dreamer'
   | 'crow'
   | 'masked'
+  | 'knight'
+  | 'dancer'
+  | 'magician'
+  | 'prince'
   | 'mixed'
   | 'wolf'
   | 'wolfking'
   | 'whitewolfking'
   | 'mechwolf'
+  | 'wolfbeauty'
+  | 'trickster'
+  | 'wolfwizard'
+  | 'masque'
+  | 'wolfgirl'
   | 'treasure';
 
 /** god / villager / wolf decide the 屠边 count; treasure depends on its buried cards */
@@ -207,6 +216,71 @@ export const ROLES: Record<RoleId, RoleDef> = {
     icon: 'mask',
     order: 19,
   },
+  knight: {
+    id: 'knight',
+    name: '骑士',
+    category: 'god',
+    faction: 'good',
+    pack: false,
+    canSelfDestruct: false,
+    short: '白天翻牌决斗一人：狼人出局，好人则骑士出局',
+    rules: [
+      '放逐发言环节（含放逐PK发言）可以随时翻牌，与一名存活玩家决斗，整局一次；警长竞选环节不能决斗。',
+      '对方是狼人阵营：对方出局（没有遗言），当天直接进入黑夜。被决斗的狼王不能开枪，狼美人的魅惑失效。',
+      '对方是好人：骑士出局，留下遗言后继续发言环节。',
+    ],
+    icon: 'sword',
+    order: 22,
+  },
+  dancer: {
+    id: 'dancer',
+    name: '舞者',
+    category: 'god',
+    faction: 'good',
+    pack: false,
+    canSelfDestruct: false,
+    short: '次夜起选三人共舞，少数阵营出局',
+    rules: [
+      '从第二晚起，每晚可以选择三名玩家进入舞池（共舞），每名玩家整局只能进入一次舞池。',
+      '天亮结算：三人同属一个阵营则无事发生；阵营不同时，人数少的一方出局（不能被解药或守护挡下）。',
+      '舞者选择自己共舞时，当晚舞池中的三人都免疫狼刀。',
+      '舞者免疫女巫的毒药。',
+    ],
+    icon: 'music',
+    order: 23,
+  },
+  magician: {
+    id: 'magician',
+    name: '魔术师',
+    category: 'god',
+    faction: 'good',
+    pack: false,
+    canSelfDestruct: false,
+    short: '每晚交换两个号码，当晚技能作用互换',
+    rules: [
+      '每晚可以交换两名玩家的号码（可以包括自己，也可以不交换）：当晚所有作用在其中一个号码上的技能（狼刀、毒药、解药、守护、查验等）都作用到另一名玩家身上。',
+      '每个号码整局只能被魔术师交换一次。交换只在当晚有效。',
+      '在「魔幻对决」中第二晚起才能交换（首夜只确认身份）。',
+      '与诡术师当晚交换的两个号码完全相同时，两者均无效。',
+    ],
+    icon: 'wand',
+    order: 24,
+  },
+  prince: {
+    id: 'prince',
+    name: '定序王子',
+    category: 'god',
+    faction: 'good',
+    pack: false,
+    canSelfDestruct: false,
+    short: '放逐投票后可翻牌，作废本次放逐并重新投票',
+    rules: [
+      '放逐投票产生出局结果后，可以翻牌发动技能：本次放逐作废，定序王子进行一次额外发言后重新组织投票。整局一次。',
+      '只对放逐投票有效，警长竞选不能发动；定序王子额外发言期间狼人不能自爆。',
+    ],
+    icon: 'hourglass',
+    order: 25,
+  },
   villager: {
     id: 'villager',
     name: '普通村民',
@@ -284,6 +358,88 @@ export const ROLES: Record<RoleId, RoleDef> = {
     icon: 'crown-white',
     order: 32,
   },
+  wolfbeauty: {
+    id: 'wolfbeauty',
+    name: '狼美人',
+    category: 'wolf',
+    faction: 'wolf',
+    pack: true,
+    canSelfDestruct: false,
+    short: '每晚魅惑一人，被放逐或毒杀时带走被魅惑者',
+    rules: [
+      '与狼队一起选择击杀目标，之后单独睁眼魅惑一名玩家（不能魅惑自己，不能连续两晚魅惑同一人）。狼队不能刀狼美人。',
+      '狼美人被放逐或被毒杀时，被魅惑的玩家殉情出局（殉情的玩家没有遗言，猎人不能开枪）。',
+      '被骑士决斗出局时魅惑失效；其他方式出局也不会殉情。',
+      '不能自爆。作为最后一名狼人被放逐、且殉情带走了最后一名神职或平民时，狼人阵营获胜。',
+    ],
+    icon: 'rose',
+    order: 34,
+  },
+  trickster: {
+    id: 'trickster',
+    name: '诡术师',
+    category: 'wolf',
+    faction: 'wolf',
+    pack: true,
+    canSelfDestruct: true,
+    short: '狼人阵营，每晚交换两个号码',
+    rules: [
+      '狼人阵营，与狼队一起行动。每晚在魔术师之后睁眼，可以交换两名玩家的号码：当晚作用在其中一个号码上的技能作用到另一名玩家身上。',
+      '每名玩家整局只能被诡术师交换一次；可以选择不交换，但不能连续两晚不交换。',
+      '与魔术师当晚交换的两个号码完全相同时，两者均无效。',
+    ],
+    icon: 'cards',
+    order: 35,
+  },
+  wolfwizard: {
+    id: 'wolfwizard',
+    name: '狼术师',
+    category: 'wolf',
+    faction: 'wolf',
+    pack: true,
+    canSelfDestruct: true,
+    short: '狼人阵营，次夜起在魔术师之后再换两个座位',
+    rules: [
+      '狼人阵营，与狼队一起行动。从第二晚起，每晚在魔术师之后睁眼，可以再次交换两名玩家的座位：当晚作用在其中一个座位上的技能作用到另一名玩家身上。',
+      '与魔术师交换同一对座位时相当于换回原位。',
+    ],
+    icon: 'wolf-star',
+    order: 36,
+  },
+  masque: {
+    id: 'masque',
+    name: '假面',
+    category: 'wolf',
+    faction: 'wolf',
+    pack: false,
+    canSelfDestruct: false,
+    short: '不与狼队见面；可验证舞池并赐予面具',
+    rules: [
+      '狼人阵营，与狼队互不见面，不能自爆。普通狼人（狼队）全部出局后接刀，此后每晚自己开刀。',
+      '从第二晚起，每晚可以验证一名玩家当晚是否在舞池中，并可以赐予一名玩家面具：被赐予面具的玩家当晚在舞池中按相反阵营计算（只在舞池内、只在当晚有效）。不能连续两晚给同一名玩家面具。',
+      '假面免疫女巫的毒药。',
+    ],
+    icon: 'theater',
+    order: 37,
+  },
+  wolfgirl: {
+    id: 'wolfgirl',
+    name: '狼女孩',
+    category: 'wolf',
+    faction: 'wolf',
+    pack: true,
+    canSelfDestruct: true,
+    short: '首夜表白一人：平民成为狼混；自爆时表白对象随之出局',
+    rules: [
+      '狼人阵营，与狼队一起睁眼。首夜在狼队之后单独睁眼，向一名玩家表白（必须表白，不能表白自己和狼队友），整局一次。',
+      '被表白的平民成为狼混：身份牌仍是平民，预言家查验仍是好人，但与狼人阵营共同胜利（屠边时仍计入平民）。',
+      '被表白的神职默认拒绝：身份、阵营和技能都不变。被表白者只知道自己被表白，不知道狼女孩是谁；狼女孩也不知道对方是否接受。',
+      '狼女孩白天自爆时，表白对象（若仍存活）随之出局，两人都没有遗言；被带走的猎人不能开枪。以放逐、毒杀等其他方式出局时，表白对象不受影响。',
+      '所有狼人（含狼女孩）出局即好人胜利，狼混仍存活也不影响。',
+    ],
+    icon: 'heart',
+    order: 38,
+  },
   mechwolf: {
     id: 'mechwolf',
     name: '机械狼',
@@ -299,7 +455,7 @@ export const ROLES: Record<RoleId, RoleDef> = {
       '· 学习女巫 / 毒师：获得一瓶毒药。',
       '· 学习守卫：每晚可以守护一名玩家，可以挡狼刀，也可以挡毒药；不能连续两晚守护同一人。',
       '· 学习猎人：被狼人击杀或被放逐出局时可以开枪（被毒不能开枪）。',
-      '· 学习狼人（含狼王、白狼王）：成为双刀狼，普通狼人全部出局后的第一个夜晚可以刀两人，其中一刀为破盾刀，无视守卫守护；那一晚不用则作废。',
+      '· 学习狼人阵营的身份（狼人、狼王、白狼王、狼美人、诡术师、狼术师、假面）：成为双刀狼，普通狼人全部出局后的第一个夜晚可以刀两人，其中一刀为破盾刀，无视守卫守护；那一晚不用则作废。',
       '· 学习其他身份：没有技能。',
       '普通狼人（狼队）全部出局后，机械狼获得刀人能力。',
     ],
@@ -364,12 +520,9 @@ export function mechSkillFor(learned: RoleId): MechSkill {
       return 'guard';
     case 'hunter':
       return 'gun';
-    case 'wolf':
-    case 'wolfking':
-    case 'whitewolfking':
-      return 'double';
     default:
-      return 'none';
+      // any wolf-faction card (狼人、狼王、白狼王、狼美人、诡术师、狼术师、假面) → 双刀
+      return ROLES[learned].faction === 'wolf' && learned !== 'mechwolf' ? 'double' : 'none';
   }
 }
 

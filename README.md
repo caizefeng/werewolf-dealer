@@ -13,8 +13,9 @@ It is self-hosted: run your own instance (one small Docker container, see
 ## How a game goes
 
 1. **Create a room** on the home page: pick a board (预女猎白, 预女猎守, 预女猎白混, 机械狼通灵师,
-   狼王守卫, 白狼王守卫, 狼王摄梦人, 盗宝大师, 9/10-person boards) or set custom role counts,
-   optionally adjust the rule options, enter your name, tap 创建房间.
+   狼王守卫, 白狼王守卫, 狼王摄梦人, 盗宝大师, 狼美骑士, 假面舞会, 诡术之境, 魔幻对决, 狼女孩, 9/10-person boards)
+   or set custom role counts (4–20 players, any mix of roles), optionally adjust the rule options,
+   enter your name, tap 创建房间.
 2. **Invite**: tap 邀请 → 复制链接 and paste it in the group chat. Anyone with the link joins
    (no accounts; identity is a random id kept in the browser, like when2meet).
 3. **Seats**: everyone (including the owner) taps a free seat. Seats are numbered like the table.
@@ -29,7 +30,7 @@ It is self-hosted: run your own instance (one small Docker container, see
    The owner can 再来一局 (same seats, new deal) or reconfigure (⋮ → 重新配置并开始).
 
 Bottom bar (identical for every role, so a glance at someone's phone reveals nothing):
-**身份** (role card), **技能** (hidden menu: 自爆 / 白狼王自爆带人, potions and other private status),
+**身份** (role card), **技能** (hidden menu: 自爆 / 白狼王自爆带人 / 骑士决斗, potions and other private status),
 **记录** (public history: deaths, elections, 票型 vote breakdowns, 自爆, shots, badge passes),
 **规则** (every role in this game + general rules + night order).
 
@@ -110,23 +111,73 @@ Roles (full text in `shared/roles.ts`)
   never meets the pack, gets the knife after its teammates (the pack can tell from its own size).
   Otherwise good, counting as 神 (2 gods buried) or 民. Each night it uses one card, never the same one
   twice in a row. God cards give that night's skill (the 女巫 card has only a poison), wolf and villager
-  cards are camouflage. Holding the 猎人 card it may shoot on death; holding the 蒙面人 card it has the
+  cards are camouflage, and so are cards without a simple night skill on custom tables (白神, 骑士, 舞者,
+  魔术师, 定序王子; a buried role is still called every night). Holding the 猎人 card it may shoot on death; holding the 蒙面人 card it has the
   蒙面 passive. Using the 摄梦人 card on the same player on two successive uses (one night apart) kills
   them (盗宝摄梦隔夜梦亡). As the last wolf holding the 蒙面人 card, if exiled it may survive once and
   kills twice that night (主动蒙面). The 通灵师 sees the card; the 预言家 sees the card's faction.
 - Wolves: every living pack wolf must confirm the same target (or 空刀); on timeout the most-picked
   target wins, ties broken at random. Self-knife is allowed.
 
-Night order: 混血儿 (night 1) → 机械狼学习 (night 1) → 盗宝大师 → 摄梦人 → 守卫 → 狼人 → 机械狼刀人 →
-女巫 → 毒师 → 预言家 → 通灵师 → 乌鸦 → 机械狼技能 → 猎人 / 狼王 / 白狼王 status → 蒙面人 (night 1) →
-白神 (night 1).
-Settlement happens at dawn, so the order only affects what each role knows. Guards and dreamers act before the
-knife, the witch after it, and status checks after every poison.
+Roles of 狼美骑士, 假面舞会, 诡术之境, 魔幻对决 and 狼女孩 (each also works in custom games of any size)
+- 骑士: flips and duels one living player during 放逐发言 or 放逐PK发言 only (not the election, last
+  words or the 定序王子's speech), once per game, from 技能. Wolf-faction target (any wolf card incl.
+  狼美人, 假面, 机械狼, 盗宝狼) → it goes out without last words and night falls at once (no exile vote;
+  a wounded 蒙面人 still goes out first). Good target → the knight goes out, leaves last words, and the
+  speeches continue where they were. A duelled 狼王 cannot shoot.
+- 机械狼 learning any wolf-faction card (incl. 狼美人, 诡术师, 狼术师, 假面) gets the 双刀; the new god cards
+  give it nothing.
+- 狼美人: knifes with the pack (the pack cannot knife her), then charms one other player alone, never the
+  same player two nights running; the charm stays on the last target if she skips a night. Exiled or
+  poisoned (witch, 毒师, any poison) → the charmed player dies too (殉情: no last words, no gun).
+  Duelled, shot or taken → no 殉情. Cannot self-destruct. If she is the last wolf and her 殉情 takes the
+  last god or villager, the wolves win, whatever the tie option says (as her card states).
+- 舞者: from night 2 picks exactly three players for the dance floor (self allowed), each player at most once
+  per game, or skips. At dawn a mixed floor loses its minority (2 vs 1 → the 1 dies, cause 舞池). Nothing
+  blocks it (antidote, guard, dream), and a hunter dying there cannot shoot. With the dancer on the floor
+  the floor is immune to the knife that night. The dancer is immune to the witch's poison.
+- 假面: wolf faction, never meets the pack, cannot self-destruct, immune to the witch's poison. Night 1 it only
+  confirms its card. From night 2: first verifies one player (is X on the floor tonight?), then may give a
+  mask (not to the same player two nights running): the masked player counts as the opposite faction on the
+  floor tonight. Gets the knife when the pack is gone (on a custom table without a pack, from night 1).
+- 魔术师 / 诡术师 / 狼术师 (number swaps): every skill aimed at one of two swapped numbers that night hits the
+  other player instead: knife, poison, antidote, guard, checks, dance picks, mask, charm. Swaps compose in
+  call order 魔术师 → 诡术师 → 狼术师, so the same pair swapped twice cancels out. The witch sees the knife as
+  the number the wolves picked. Her antidote is void if, through the swaps, it would land on herself
+  (no self-save). Each number can be swapped by the 魔术师 once per game; each player by the 诡术师 once,
+  and the 诡术师 may not skip two nights running. 狼术师 acts from night 2. *Option* (默认开): 魔术师首夜可交换;
+  the 魔幻对决 preset turns it off. 诡术师's "白天出局信息置换" has no reliable source, so swaps
+  only affect the night.
+- 狼女孩 (board 狼女孩: 预言家 毒师 猎人 守卫 + 狼女孩 3狼 + 4民): wakes with the pack. On night 1 the pack
+  only confirms each other (*option* 首夜禁刀, on for this board; it also stops 假面/盗宝狼 knives that
+  night). Then she confesses (表白) to one player outside her pack: mandatory, night 1 only, random on
+  timeout. A plain 平民 becomes 狼混: same card, checks as 好人, counts as 民 for 屠边, wins with the
+  wolves, and does not meet them. Good still wins once every real wolf is out, 狼混 alive or not.
+  Anyone else (gods, 混血儿, 盗宝大师 …) refuses by default and keeps everything. Right after her step only
+  the confessed player is told (被表白的玩家请睁眼), without learning who she is; she never learns the
+  answer. When she self-destructs, the confessed player goes out with her if still alive, even if killed
+  at night but not yet announced. Neither leaves last words, a hunter cannot shoot, a guard cannot stop it,
+  and a sheriff passes the badge. Exiled, poisoned, shot or duelled → nothing happens to the confessed
+  player. Swaps redirect the confession like any targeted skill.
+- 定序王子: after every exile vote with a result (not the election, not a 平票), a fixed 10 s window
+  opens. It opens even when the prince is dead or his card is buried, so it reveals nothing, until the
+  skill is spent. If a PK candidate dies during the PK (a lost duel), the other one is the result,
+  and the window still opens. Flip → the exile is void, the prince speaks once (no 自爆 or duels during
+  it), then everyone alive votes again. Once per game; he may void his own exile.
+
+Night order: 魔术师 → 诡术师 → 狼术师 (night 2+) → 混血儿 (night 1) → 机械狼学习 (night 1) → 盗宝大师 →
+舞者 (night 2+) → 假面 → 摄梦人 → 守卫 → 狼人 → 狼美人 → 狼女孩 + 被表白者 (night 1) → 机械狼刀人 → 女巫 →
+毒师 → 预言家 → 通灵师 → 乌鸦 → 机械狼技能 → 猎人 / 狼王 / 白狼王 status → 蒙面人 (night 1) → 白神 (night 1).
+Settlement happens at dawn, so the order only affects what each role knows. Swaps come first because they
+redirect everything after them. Guards and dreamers act before the knife, the witch after it, and status
+checks after every poison.
 
 Sources consulted: the 京城大师赛 official Weibo post introducing 蒙面人 (2024-10-28) and the board
 designer's clarification of its execution (2025-11-26), 京城大师赛 超话 rule notes on 盗宝大师,
 tournament-style setup write-ups for 京城-style boards (melbournemasters.org setups, werewolves.games
-judge scripts), and community rule summaries (Douban, Gamersky, 口袋狼人杀). There is no single official 京城 rulebook online. If a
+judge scripts), and community rule summaries (Douban, Gamersky, 口袋狼人杀). 狼女孩 follows a community write-up
+of the 12-person 狼女孩 board (表白、狼混、首夜禁刀、自爆报复、屠边). Where it was silent (night 1 only, mandatory,
+not to her pack, 狼混 counts as 民), the choices are listed above. There is no single official 京城 rulebook online. If a
 ruling differs from how you play, it is easy to change: settlement is in `server/game/resolve.ts`, the
 flow in `server/game/engine.ts`.
 
@@ -180,12 +231,20 @@ Server environment: `PORT` (3000), `HOST`, `DATA_DIR` (room snapshots, default `
 - `tests/engine/masked.test.ts`: 蒙面人 wounds (knife/poison/梦亡, antidote/guard/同守同救), going out after its
   own speech or before nightfall, early settlement, the wounded sheriff, 盗宝蒙面 survival + double knife,
   盗宝摄梦隔夜梦亡.
+- `tests/engine/newroles.test.ts`: 骑士 duels (wolf/good target, timing windows, PK, badge, 蒙面人), 狼美人 charm
+  and 殉情 (poison vs exile vs duel, last-wolf tie), the dance floor (minorities, masks, knife immunity, poison
+  immunity, unblockable deaths), swaps composing with each other and with every targeted skill (witch,
+  guard, seer, dreamer, 机械狼 …), 定序王子 windows (dead or buried prince), 狼女孩 (首夜禁刀, 狼混 wins and
+  secrecy, refusals, 自爆报复 incl. election/sheriff/unannounced deaths, swaps), the new roles with 机械狼 and
+  盗宝大师, and the night orders.
 - `tests/engine/boards.test.ts`: scripted complete 12-player games on 预女猎白混, 机械狼通灵师 and 盗宝大师
   (two buried-card variants), checking the table after every night and day.
-- `tests/engine/fuzz.test.ts`: random agents play ~2,100 complete games: every preset, 400 more each on
-  预女猎白混 / 机械狼通灵师 / 盗宝大师 (asserting their key mechanics actually happen), and 200 from a last-wolf
-  盗宝蒙面 position. They act only through the prompts the UI uses; every prompt-derived action must be
-  accepted and every game must end.
+- `tests/engine/fuzz.test.ts`: random agents play ~5,900 complete games: every preset; 400 more each on
+  预女猎白混 / 机械狼通灵师 / 盗宝大师 / 狼美骑士 / 假面舞会 / 诡术之境 / 魔幻对决 / 狼女孩 (asserting their key
+  mechanics actually happen); 200 from a last-wolf 盗宝蒙面 position; and 1,500 random custom tables (5–18
+  players, any mix of roles and rule options). They act only through the prompts the UI uses; every
+  prompt-derived action must be accepted, every game must end, and nothing the judge says at night may
+  contain a seat number.
 - `tests/server/server.test.ts`: real WebSocket clients play a full game; per-client privacy,
   reconnect, owner permissions, seat release/re-claim, owner link, restart persistence, origin check.
 - `tests/e2e/game.spec.ts`: Playwright on phone profiles: three browser players (owner/预言家, 女巫,
@@ -193,6 +252,9 @@ Server environment: `PORT` (3000), `HOST`, `DATA_DIR` (room snapshots, default `
   console errors; screenshots go to `test-results/shots/`.
 - `tests/e2e/boards.spec.ts`: the special roles of 预女猎白混 (混血儿, 白神), 机械狼通灵师 (机械狼, 通灵师) and
   盗宝大师 (盗宝大师 card choice, wounded 蒙面人) driven through the UI, each game played to the end.
+- `tests/e2e/newboards.spec.ts`: 狼美骑士 (charm, a duel from the 技能 menu), 假面舞会 (three dancers, 假面 verify +
+  mask), 诡术之境 (a 魔术师 swap moving the knife, the 定序王子 voiding an exile), 魔幻对决 (a 狼术师 swap) and
+  狼女孩 (首夜禁刀, confession, 自爆报复) through the UI, each game played to the end.
 
 ## Deploy your own instance
 

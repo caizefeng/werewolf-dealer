@@ -32,9 +32,11 @@ client/            # Vite + Preact
   src/lib/ (store, ids/localStorage, ws reconnecting client, wakelock)
   src/audio/ (engine: clip queue + ducking; music: generative night soundtrack)
 tests/engine/      # vitest: resolve, flow, special (机械狼/盗宝/secrecy), masked (蒙面人), boards (scripted 12p games),
-                   #         fuzz (~2,100 random games; focused on 预女猎白混/机械狼通灵师/盗宝大师)
+                   #         newroles (骑士/狼美人/舞者/假面/魔术师/诡术师/狼术师/定序王子/狼女孩 interactions),
+                   #         fuzz (~5,900 random games: every preset, 400 per special board, 1,500 random custom
+                   #         tables; night announcements must never contain a seat number)
 tests/server/      # vitest: real ws clients play a game, privacy, reconnect, persistence
-tests/e2e/         # Playwright phone profiles; bots.ts = ws bot players
+tests/e2e/         # Playwright phone profiles (game, boards, newboards specs); bots.ts = ws bot players
 scripts/           # gen_audio.py (edge-tts), smoke.ts (live smoke test), find-overflow.mjs
 deploy/            # deploy.sh, deploy.env.example, werewolf.caddy.template (deploy.env is git-ignored)
 Dockerfile, docker-compose.yml
@@ -68,6 +70,18 @@ syntax and import with explicit `.ts` extensions.
   discussion speech (`advanceSpeech`) or, if they never spoke, in `nextStage` before night falls.
   `maskedEarlyWin()` implements the ≥2-wolves early 屠神 settlement; `maskActiveEligible()` the
   盗宝蒙面 survival (a `mask` entry in the deathSkills phase, the death applied only if declined).
+- Number swaps (魔术师 → 诡术师 → 狼术师): night records keep the numbers players picked; `nightPerm()`/`mapT()`
+  map a number to the player actually hit, applied in `nightInputs` (settlement) and in any immediate
+  result (查验, 假面验证). Every new targeted night skill must go through `mapT`.
+- Knife holder chain (`knifeHolder`): pack → 机械狼 → 假面 → wolf-side 盗宝大师. `knifeAllowed()` (首夜禁刀)
+  gates every knife on night 1.
+- 狼女孩: `state.confession` (picked number, actual target, `turned` = 平民 → 狼混); `isLanghun()` changes only the
+  win side (results); `revengeTarget()` is taken along by her 自爆. The `confessed` status step's actor is
+  the confessed player (`stepActors`).
+- 舞池/殉情 are settled in `resolveNight` (`extra`, `lovers`); `canShootFor` allows a gun only for knife/exile.
+- 定序王子: every exile result goes through `exileOrPrince` (fixed window while the card is unused, even if
+  the prince is dead); 骑士 duels only in `duelWindow()` (discussion/exilePk speeches); a won duel clears
+  `dayQueue` and `resume`.
 - Public audio/text must never include private info; tests assert this.
 - Adding a role: `shared/roles.ts` (+ icon in `client/src/ui.tsx`), step in `stepsForNight`,
   `STEP_*` maps, prompt in `nightPrompt`, action in `nightAction`, settlement in `nightInputs`,

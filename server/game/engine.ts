@@ -44,9 +44,18 @@ export const T = {
   orderChoice: 20,
   withdraw: 30,
   treasureExtra: 15,
+  princeWindow: 10,
 };
 
 const STEP_NAMES: Record<NightStepId, string> = {
+  magician: '魔术师',
+  trickster: '诡术师',
+  wolfwizard: '狼术师',
+  dancer: '舞者',
+  masque: '假面',
+  beauty: '狼美人',
+  wolfgirl: '狼女孩',
+  confessed: '被表白者',
   mixed: '混血儿',
   mechLearn: '机械狼',
   treasure: '盗宝大师',
@@ -68,6 +77,14 @@ const STEP_NAMES: Record<NightStepId, string> = {
 };
 
 const STEP_ROLE: Record<NightStepId, RoleId | 'pack'> = {
+  magician: 'magician',
+  trickster: 'trickster',
+  wolfwizard: 'wolfwizard',
+  dancer: 'dancer',
+  masque: 'masque',
+  beauty: 'wolfbeauty',
+  wolfgirl: 'wolfgirl',
+  confessed: 'wolfgirl', // actor = the confessed player (see stepActors)
   mixed: 'mixed',
   mechLearn: 'mechwolf',
   treasure: 'treasure',
@@ -88,10 +105,29 @@ const STEP_ROLE: Record<NightStepId, RoleId | 'pack'> = {
   whitegodConfirm: 'whitegod',
 };
 
-const STATUS_STEPS: NightStepId[] = ['hunterStatus', 'wolfkingStatus', 'wwkStatus', 'maskedConfirm', 'whitegodConfirm'];
+const STATUS_STEPS: NightStepId[] = ['hunterStatus', 'wolfkingStatus', 'wwkStatus', 'maskedConfirm', 'whitegodConfirm', 'confessed'];
 
-function stepClips(step: NightStepId, night: number): { open: string[]; close: string[] } {
+function stepClips(step: NightStepId, night: number, cfg: GameConfig): { open: string[]; close: string[] } {
   switch (step) {
+    case 'magician':
+      return {
+        open: ['magician_open', night === 1 && !cfg.rules.magicianFirstNight ? 'confirm_identity' : 'swap_act'],
+        close: ['magician_close'],
+      };
+    case 'trickster':
+      return { open: ['trickster_open', 'swap_act'], close: ['trickster_close'] };
+    case 'wolfwizard':
+      return { open: ['wolfwizard_open', 'wolfwizard_act'], close: ['wolfwizard_close'] };
+    case 'dancer':
+      return { open: ['dancer_open', 'dancer_act'], close: ['dancer_close'] };
+    case 'masque':
+      return { open: ['masque_open', night === 1 ? 'confirm_identity' : 'masque_act'], close: ['masque_close'] };
+    case 'beauty':
+      return { open: ['beauty_open', 'beauty_act'], close: ['beauty_close'] };
+    case 'wolfgirl':
+      return { open: ['wolfgirl_open', 'wolfgirl_act'], close: ['wolfgirl_close'] };
+    case 'confessed':
+      return { open: ['confessed_open'], close: ['confessed_close'] };
     case 'mixed':
       return { open: ['mixed_open', 'mixed_act'], close: ['mixed_close'] };
     case 'mechLearn':
@@ -103,7 +139,10 @@ function stepClips(step: NightStepId, night: number): { open: string[]; close: s
     case 'guard':
       return { open: ['guard_open', 'guard_act'], close: ['guard_close'] };
     case 'wolves':
-      return { open: ['wolves_open', night === 1 ? 'wolves_act1' : 'wolves_act'], close: ['wolves_close'] };
+      return {
+        open: ['wolves_open', night === 1 ? (cfg.rules.firstNightNoKnife ? 'wolves_meet' : 'wolves_act1') : 'wolves_act'],
+        close: ['wolves_close'],
+      };
     case 'mechKill':
       return { open: ['mech_open', 'mechkill_act'], close: ['mech_close'] };
     case 'witch':
@@ -135,12 +174,21 @@ export function stepsForNight(cfg: GameConfig, night: number): NightStepId[] {
   const has = (r: RoleId) => (cfg.roles[r] ?? 0) > 0;
   const hasPack = (Object.keys(cfg.roles) as RoleId[]).some((r) => ROLES[r].pack && (cfg.roles[r] ?? 0) > 0);
   const steps: NightStepId[] = [];
+  // number swaps come first: they redirect every targeted skill of the night
+  if (has('magician')) steps.push('magician');
+  if (has('trickster')) steps.push('trickster');
+  if (night >= 2 && has('wolfwizard')) steps.push('wolfwizard');
   if (night === 1 && has('mixed')) steps.push('mixed');
   if (night === 1 && has('mechwolf')) steps.push('mechLearn');
   if (has('treasure')) steps.push('treasure');
+  if (night >= 2 && has('dancer')) steps.push('dancer');
+  if (has('masque')) steps.push('masque');
   if (has('dreamer')) steps.push('dreamer');
   if (has('guard')) steps.push('guard');
   if (hasPack) steps.push('wolves');
+  if (has('wolfbeauty')) steps.push('beauty');
+  // 狼女孩 confesses once, on night 1; the confessed player then learns it
+  if (night === 1 && has('wolfgirl')) steps.push('wolfgirl', 'confessed');
   if (night >= 2 && has('mechwolf')) steps.push('mechKill');
   if (has('witch')) steps.push('witch');
   if (has('poisoner')) steps.push('poisoner');
@@ -156,32 +204,28 @@ export function stepsForNight(cfg: GameConfig, night: number): NightStepId[] {
   return steps;
 }
 
+const STEP_LABELS: Partial<Record<NightStepId, string>> = {
+  mixed: '混血儿（首夜）',
+  mechLearn: '机械狼学习（首夜）',
+  mechKill: '机械狼刀人',
+  mechSkill: '机械狼技能',
+  wolfwizard: '狼术师（次夜起）',
+  dancer: '舞者（次夜起）',
+  beauty: '狼美人魅惑',
+  wolfgirl: '狼女孩表白（首夜）',
+  confessed: '被表白者确认（首夜）',
+  maskedConfirm: '蒙面人确认身份（首夜）',
+  whitegodConfirm: '白神确认身份（首夜）',
+};
+
 export function nightStepNames(cfg: GameConfig): string[] {
-  const n1 = stepsForNight(cfg, 1);
-  const n2 = stepsForNight(cfg, 2);
-  const out: string[] = [];
   const all: NightStepId[] = [];
-  for (const s of [...n1, ...n2]) if (!all.includes(s)) all.push(s);
-  for (const s of all) {
-    const label =
-      s === 'mechLearn'
-        ? '机械狼学习（首夜）'
-        : s === 'mechKill'
-          ? '机械狼刀人'
-          : s === 'mechSkill'
-            ? '机械狼技能'
-            : s === 'mixed'
-              ? '混血儿（首夜）'
-              : s === 'whitegodConfirm'
-                ? '白神确认身份（首夜）'
-                : s === 'maskedConfirm'
-                  ? '蒙面人确认身份（首夜）'
-                : s.endsWith('Status')
-                  ? `${STEP_NAMES[s]}确认状态`
-                  : STEP_NAMES[s];
-    out.push(label);
-  }
-  return out;
+  for (const s of [...stepsForNight(cfg, 1), ...stepsForNight(cfg, 2)]) if (!all.includes(s)) all.push(s);
+  return all.map((s) =>
+    s === 'magician' && !cfg.rules.magicianFirstNight
+      ? '魔术师（次夜起）'
+      : (STEP_LABELS[s] ?? (s.endsWith('Status') ? `${STEP_NAMES[s]}确认状态` : STEP_NAMES[s])),
+  );
 }
 
 /** seats ordered starting at `from` (inclusive) going around the table */
@@ -213,6 +257,12 @@ function newPlayer(seat: number, role: RoleId): Player {
     crowLast: null,
     checks: [],
     mech: role === 'mechwolf' ? { learned: null, from: null, poison: false, guardLast: null, double: 'unused' } : null,
+    swapUsed: [],
+    swapSkipped: false,
+    danced: [],
+    charmLast: null,
+    maskLast: null,
+    skillUsed: false,
     treasure: null,
     mixedModel: null,
   };
@@ -281,6 +331,9 @@ export class Game {
       exilePk: null,
       pending: [],
       wounded: [],
+      charm: null,
+      confession: null,
+      resume: null,
       pendingNight: 0,
       nights: [],
       curses: [],
@@ -390,9 +443,31 @@ export class Game {
     if (this.packSeats(true).length > 0) return 'pack';
     const mech = this.aliveSeatOf('mechwolf');
     if (mech) return mech;
+    const masque = this.aliveSeatOf('masque');
+    if (masque) return masque;
     const t = this.s.players.find((p) => p.role === 'treasure' && p.alive && p.treasure?.faction === 'wolf');
     if (t) return t.seat;
     return null;
+  }
+
+  /** number → player for tonight after 魔术师 / 诡术师 / 狼术师 swaps (in that order) */
+  nightPerm(): number[] {
+    const perm = Array.from({ length: this.n + 1 }, (_, i) => i);
+    const rec = this.s.nights[this.s.nights.length - 1];
+    if (!rec || rec.night !== this.s.night || !rec.swaps) return perm;
+    for (const by of ['magician', 'trickster', 'wolfwizard'] as const) {
+      const pair = rec.swaps[by];
+      if (pair && pair.length === 2) [perm[pair[0]], perm[pair[1]]] = [perm[pair[1]], perm[pair[0]]];
+    }
+    return perm;
+  }
+
+  /** the player a night target (by number) actually hits */
+  mapT(n: number): number;
+  mapT(n: number | null | undefined): number | null;
+  mapT(n: number | null | undefined): number | null {
+    if (n == null) return null;
+    return this.nightPerm()[n] ?? n;
   }
 
   mechSkill(): MechSkill {
@@ -487,6 +562,7 @@ export class Game {
       case 'withdraw':
       case 'orderChoice':
       case 'deathSkills':
+      case 'princeWindow':
         return ph.deadline;
       default:
         return null;
@@ -524,6 +600,8 @@ export class Game {
         return this.chooseOrder(rand(this.s) < 0.5 ? 'cw' : 'ccw', now);
       case 'deathSkills':
         return this.finishDeathSkills(now);
+      case 'princeWindow':
+        return this.finishPrinceWindow(now);
       default:
         return;
     }
@@ -550,6 +628,7 @@ export class Game {
       case 'withdraw':
       case 'orderChoice':
       case 'deathSkills':
+      case 'princeWindow':
         ph.deadline += delta;
         break;
       case 'speech':
@@ -615,6 +694,9 @@ export class Game {
       case 'deathSkills':
         this.finishDeathSkills(now);
         return null;
+      case 'princeWindow':
+        this.finishPrinceWindow(now);
+        return null;
       case 'interlude':
         this.nextStage(now);
         return null;
@@ -638,9 +720,15 @@ export class Game {
       case 'wolfPick':
       case 'witch':
       case 'treasure':
+      case 'masqueVerify':
+      case 'masqueAct':
       case 'ack':
         if (ph.kind !== 'night') return '现在不是夜间行动时间';
         return this.nightAction(seat, a, now);
+      case 'duel':
+        return this.duel(seat, a.target, now);
+      case 'prince':
+        return this.princeUse(seat, !!a.use, now);
       case 'signup': {
         if (ph.kind !== 'signup') return '现在不能上警';
         if (!this.p(seat).alive) return '你已出局';
@@ -721,6 +809,10 @@ export class Game {
 
   /** actors for a step (alive) */
   stepActors(step: NightStepId): number[] {
+    if (step === 'confessed') {
+      const c = this.s.confession;
+      return c && c.target !== c.by && this.p(c.target).alive ? [c.target] : [];
+    }
     const r = STEP_ROLE[step];
     if (r === 'pack') return this.packSeats(true);
     const seat = this.aliveSeatOf(r);
@@ -734,6 +826,18 @@ export class Game {
     if (actors.length === 0) return false;
     const pl = this.p(actors[0]);
     switch (step) {
+      case 'magician':
+        if (this.s.night === 1 && !this.s.config.rules.magicianFirstNight) return false;
+        return this.pickOptions(step, pl.seat).options.length >= 2;
+      case 'trickster':
+      case 'wolfwizard':
+        return this.pickOptions(step, pl.seat).options.length >= 2;
+      case 'dancer':
+        return this.pickOptions(step, pl.seat).options.length >= 3;
+      case 'masque':
+        return this.s.night >= 2 || (this.knifeHolder() === pl.seat && this.knifeAllowed());
+      case 'wolfgirl':
+        return this.pickOptions(step, pl.seat).options.length > 0;
       case 'mechKill':
         return this.knifeHolder() === pl.seat;
       case 'witch':
@@ -757,7 +861,7 @@ export class Game {
       return;
     }
     const step = ph.steps[idx];
-    const clips = stepClips(step, this.s.night);
+    const clips = stepClips(step, this.s.night, this.s.config);
     const texts = clips.open.map((c) => this.clipText(c));
     this.announce(now, texts.join(''), clips.open);
     ph.sub = 'open';
@@ -804,7 +908,7 @@ export class Game {
       case 'act': {
         const step = ph.steps[ph.idx];
         if (!ph.fake && ph.doneAt == null) this.applyDefault(step, now);
-        const clips = stepClips(step, this.s.night);
+        const clips = stepClips(step, this.s.night, this.s.config);
         this.announce(now, clips.close.map((c) => this.clipText(c)).join(''), clips.close);
         ph.sub = 'close';
         ph.until = now + this.clipsDuration(clips.close) + randInt(this.s, T.stepGap[0] * this.k, T.stepGap[1] * this.k);
@@ -824,11 +928,31 @@ export class Game {
   }
 
   /** what the current night step lets `seat` choose from */
-  private pickOptions(step: NightStepId, seat: number): { options: number[]; max: number; allowNone: boolean } {
+  private pickOptions(step: NightStepId, seat: number): { options: number[]; min: number; max: number; allowNone: boolean } {
+    const r = this.pickRange(step, seat);
+    return { min: 1, ...r };
+  }
+
+  private pickRange(step: NightStepId, seat: number): { options: number[]; min?: number; max: number; allowNone: boolean } {
     const alive = this.aliveSeats();
     const others = alive.filter((x) => x !== seat);
     const pl = this.p(seat);
     switch (step) {
+      case 'magician':
+        return { options: alive.filter((x) => !pl.swapUsed.includes(x)), min: 2, max: 2, allowNone: true };
+      case 'trickster':
+        return { options: alive.filter((x) => !pl.swapUsed.includes(x)), min: 2, max: 2, allowNone: !pl.swapSkipped };
+      case 'wolfwizard':
+        return { options: alive, min: 2, max: 2, allowNone: true };
+      case 'dancer':
+        return { options: alive.filter((x) => !pl.danced.includes(x)), min: 3, max: 3, allowNone: true };
+      case 'beauty':
+        return { options: others.filter((x) => x !== pl.charmLast), max: 1, allowNone: true };
+      case 'wolfgirl': {
+        // she knows her pack, so a confession always goes to someone outside it
+        const pack = this.packSeats(false);
+        return { options: others.filter((x) => !pack.includes(x)), max: 1, allowNone: false };
+      }
       case 'mixed':
         return { options: others, max: 1, allowNone: false };
       case 'mechLearn':
@@ -879,20 +1003,42 @@ export class Game {
       const targets = Array.isArray(a.targets) ? a.targets.filter((t) => this.validSeat(t)) : [];
       if (targets.length !== (Array.isArray(a.targets) ? a.targets.length : 0)) return '目标无效';
       if (new Set(targets).size !== targets.length) return '不能重复选择';
-      if (targets.length === 0 && !opt.allowNone) return '必须选择一名玩家';
+      if (targets.length === 0 && !opt.allowNone) return opt.min > 1 ? `必须选择${opt.min}名玩家` : '必须选择一名玩家';
+      if (targets.length > 0 && targets.length < opt.min) return `需要选择${opt.min}名玩家`;
       if (targets.length > opt.max) return '选择的玩家过多';
       if (targets.some((t) => !opt.options.includes(t))) return '不能选择这名玩家';
       const t = targets[0] ?? null;
       switch (step) {
+        case 'magician':
+        case 'trickster':
+        case 'wolfwizard': {
+          rec.swaps = { ...(rec.swaps ?? {}), [step]: targets.slice() };
+          if (step !== 'wolfwizard') pl.swapUsed.push(...targets);
+          if (step === 'trickster') pl.swapSkipped = targets.length === 0;
+          rec.results[step] = [targets.length ? `你交换了${targets[0]}号和${targets[1]}号。` : '你今晚没有交换。'];
+          break;
+        }
+        case 'dancer':
+          rec.dance = targets.slice();
+          pl.danced.push(...targets);
+          rec.results.dancer = [targets.length ? `今晚共舞：${nums(targets)}` : '你今晚没有安排共舞。'];
+          break;
+        case 'beauty':
+          rec.charm = t;
+          pl.charmLast = t;
+          break;
+        case 'wolfgirl':
+          this.confess(seat, t!, rec);
+          break;
         case 'mixed':
           rec.mixed = t;
-          pl.mixedModel = t;
+          pl.mixedModel = this.mapT(t);
           rec.results.mixed = [`你选择了${t}号作为榜样。`];
           break;
         case 'mechLearn':
           rec.mechLearn = t;
           if (t != null && pl.mech) {
-            const learned = this.p(t).role;
+            const learned = this.p(this.mapT(t)).role;
             pl.mech.learned = learned;
             pl.mech.from = t;
             const sk = mechSkillFor(learned);
@@ -922,7 +1068,8 @@ export class Game {
         case 'psychic': {
           rec[step] = t;
           if (t != null) {
-            const result = step === 'seer' ? this.seerResult(t) : this.psychicResult(t);
+            const hit = this.mapT(t);
+            const result = step === 'seer' ? this.seerResult(hit) : this.psychicResult(hit);
             pl.checks.push({ night: this.s.night, seat: t, result });
             rec.results[step] = [`${t}号玩家的身份是：${result}`];
           }
@@ -935,7 +1082,8 @@ export class Game {
           rec.mechSkill = t;
           const sk = this.mechSkill();
           if (t != null && (sk === 'seer' || sk === 'psychic')) {
-            const result = sk === 'seer' ? this.seerResult(t) : this.psychicResult(t);
+            const hit = this.mapT(t);
+            const result = sk === 'seer' ? this.seerResult(hit) : this.psychicResult(hit);
             pl.checks.push({ night: this.s.night, seat: t, result });
             rec.results.mechSkill = [`${t}号玩家的身份是：${result}`];
           }
@@ -953,7 +1101,7 @@ export class Game {
       if (step !== 'wolves') return '现在不是狼人行动时间';
       if (rec.wolfTarget !== undefined) return '狼队已经确定目标';
       const t = a.target;
-      if (t !== null && !(this.validSeat(t) && this.p(t).alive)) return '目标无效';
+      if (t !== null && !this.wolfKillOptions().includes(t)) return '不能选择这名玩家';
       rec.wolfPicks[String(seat)] = { target: t, confirmed: !!a.confirm };
       const pack = this.packSeats(true);
       const picks = pack.map((x) => rec.wolfPicks[String(x)]);
@@ -987,6 +1135,31 @@ export class Game {
       return null;
     }
 
+    if (a.type === 'masqueVerify') {
+      if (step !== 'masque') return '现在不是假面行动时间';
+      if (rec.masqueVerify) return '你已经验证过了';
+      const t = a.target;
+      if (t !== null && !this.masqueOptions(seat).verify.includes(t)) return '目标无效';
+      const pool = (rec.dance ?? []).map((x) => this.mapT(x));
+      const result =
+        t === null ? '你没有验证。' : pool.includes(this.mapT(t)) ? `${t}号玩家今晚在舞池中。` : `${t}号玩家今晚不在舞池中。`;
+      rec.masqueVerify = { target: t, result };
+      return null;
+    }
+
+    if (a.type === 'masqueAct') {
+      if (step !== 'masque') return '现在不是假面行动时间';
+      const opts = this.masqueOptions(seat);
+      if (a.mask !== null && !opts.mask.includes(a.mask)) return '不能给这名玩家面具';
+      const kill = opts.canKill ? a.kill : null;
+      if (kill != null && !opts.kill.includes(kill)) return '击杀目标无效';
+      if (!rec.masqueVerify) rec.masqueVerify = { target: null, result: '你没有验证。' };
+      rec.masque = { mask: a.mask, kill: kill ?? null };
+      pl.maskLast = a.mask;
+      this.markDone(now);
+      return null;
+    }
+
     if (a.type === 'treasure') {
       if (step !== 'treasure') return '现在不是盗宝大师行动时间';
       const tr = pl.treasure!;
@@ -998,7 +1171,7 @@ export class Game {
       if (sk.skill === 'none') target = null;
       if (target != null && !sk.options.includes(target)) return '技能目标无效';
       if (target == null && sk.mandatory) return '这张牌必须选择技能目标';
-      const canKill = this.knifeHolder() === seat;
+      const canKill = this.knifeHolder() === seat && this.knifeAllowed();
       const kill = canKill ? (a.kill ?? null) : null;
       if (kill != null && !(this.validSeat(kill) && this.p(kill).alive)) return '击杀目标无效';
       const kill2 = canKill && tr.extraKnife && kill != null ? (a.kill2 ?? null) : null;
@@ -1007,7 +1180,8 @@ export class Game {
       rec.treasure = { card, target, kill, kill2 };
       const res: string[] = [`今晚使用的身份牌：${ROLES[tr.cards[card]].name}`];
       if (target != null && (sk.skill === 'seer' || sk.skill === 'psychic')) {
-        const result = sk.skill === 'seer' ? this.seerResult(target) : this.psychicResult(target);
+        const hit = this.mapT(target);
+        const result = sk.skill === 'seer' ? this.seerResult(hit) : this.psychicResult(hit);
         pl.checks.push({ night: this.s.night, seat: target, result });
         res.push(`${target}号玩家的身份是：${result}`);
       }
@@ -1017,6 +1191,44 @@ export class Game {
       return null;
     }
     return '未知操作';
+  }
+
+  /** 首夜禁刀: nobody holds a knife on night 1 */
+  knifeAllowed(): boolean {
+    return !(this.s.night === 1 && this.s.config.rules.firstNightNoKnife);
+  }
+
+  /** the pack may target anyone alive except the 狼美人 (不可自刀) */
+  wolfKillOptions(): number[] {
+    if (!this.knifeAllowed()) return [];
+    return this.aliveSeats().filter((x) => this.p(x).role !== 'wolfbeauty');
+  }
+
+  masqueOptions(seat: number): { verify: number[]; mask: number[]; canKill: boolean; kill: number[] } {
+    const pl = this.p(seat);
+    const alive = this.aliveSeats();
+    const canKill = this.knifeHolder() === seat && this.knifeAllowed();
+    return {
+      // the floor opens on night 2 (a 假面 holding the knife on night 1 only kills)
+      verify: this.s.night >= 2 ? alive : [],
+      mask: this.s.night >= 2 ? alive.filter((x) => x !== pl.maskLast) : [],
+      canKill,
+      kill: canKill ? alive : [],
+    };
+  }
+
+  /** 狼女孩表白: a 平民 becomes 狼混, anyone else refuses by default; neither side learns more */
+  private confess(seat: number, t: number, rec: NightRecord, timeout = false): void {
+    const target = this.mapT(t);
+    rec.confess = t;
+    this.s.confession = { by: seat, picked: t, target, turned: target !== seat && this.p(target).role === 'villager' };
+    rec.results.wolfgirl = [`${timeout ? '超时，系统为你随机' : '你'}向${t}号表白了。你不会知道对方是否接受。`];
+  }
+
+  /** the 狼混 (a 平民 who accepted 狼女孩's confession) wins with the wolves */
+  isLanghun(seat: number): boolean {
+    const c = this.s.confession;
+    return !!c && c.turned && c.target === seat;
   }
 
   witchCanSelfSave(): boolean {
@@ -1069,9 +1281,29 @@ export class Game {
         if (opt.length) {
           const t = pick(this.s, opt);
           rec.mixed = t;
-          pl.mixedModel = t;
+          pl.mixedModel = this.mapT(t);
           rec.results.mixed = [`超时，系统为你随机选择了${t}号作为榜样。`];
         }
+        break;
+      }
+      case 'trickster': {
+        // 不能连续空换: a 诡术师 who skipped last night swaps a random pair
+        const opt = this.pickOptions(step, seat);
+        if (!opt.allowNone && opt.options.length >= 2) {
+          const pair = shuffle(this.s, opt.options).slice(0, 2);
+          rec.swaps = { ...(rec.swaps ?? {}), trickster: pair };
+          pl.swapUsed.push(...pair);
+          pl.swapSkipped = false;
+          rec.results.trickster = [`超时，系统为你随机交换了${pair[0]}号和${pair[1]}号。`];
+        } else {
+          pl.swapSkipped = true;
+        }
+        break;
+      }
+      case 'masque': {
+        if (!rec.masqueVerify) rec.masqueVerify = { target: null, result: '你没有验证。' };
+        rec.masque = { mask: null, kill: null };
+        pl.maskLast = null;
         break;
       }
       case 'dreamer': {
@@ -1082,6 +1314,15 @@ export class Game {
       case 'crow': {
         const opt = this.pickOptions(step, seat).options;
         if (opt.length) rec.curse = pick(this.s, opt);
+        break;
+      }
+      case 'beauty':
+        pl.charmLast = null;
+        break;
+      case 'wolfgirl': {
+        // 必须表白: a random player on timeout
+        const opt = this.pickOptions(step, seat).options;
+        if (opt.length) this.confess(seat, pick(this.s, opt), rec, true);
         break;
       }
       case 'treasure': {
@@ -1122,9 +1363,13 @@ export class Game {
     const rec = this.currentNight();
     const inp = this.nightInputs();
     const deaths = resolveNight(inp);
-    // update persistent per-role state
+    // update persistent per-role state (dream targets are tracked by the player actually hit)
     const dreamer = this.s.players.find((p) => p.role === 'dreamer');
-    if (dreamer && dreamer.alive) dreamer.dreamLast = rec.dream ?? null;
+    if (dreamer && dreamer.alive) dreamer.dreamLast = this.mapT(rec.dream ?? null);
+    const beauty = this.s.players.find((p) => p.role === 'wolfbeauty');
+    if (beauty && beauty.alive && rec.charm != null) s.charm = { by: beauty.seat, target: this.mapT(rec.charm) };
+    const trick = this.s.players.find((p) => p.role === 'trickster');
+    if (trick && trick.alive && !rec.swaps?.trickster && this.stepActors('trickster').length) trick.swapSkipped = true;
     const guard = this.s.players.find((p) => p.role === 'guard');
     if (guard && guard.alive) guard.guardLast = rec.guard ?? null;
     const crow = this.s.players.find((p) => p.role === 'crow');
@@ -1143,18 +1388,19 @@ export class Game {
         tp.treasure.lastDream = { night: s.night, target: rec.treasure.target };
       tp.treasure.extraKnife = false;
     }
-    // 蒙面人: hit at night → 中毒/负伤, alive until their own speech tomorrow
+    // 蒙面人: knifed / poisoned / 梦亡 at night → 中毒/负伤, alive until their own speech tomorrow
     for (const [seat, causes] of [...deaths.entries()]) {
-      if (this.hasMaskPassive(this.p(seat))) {
+      const woundable = causes.every((c) => c === 'knife' || c === 'poison' || c === 'dream');
+      if (woundable && this.hasMaskPassive(this.p(seat))) {
         deaths.delete(seat);
         s.wounded.push({ seat, causes, night: s.night });
       }
     }
     // curse for the coming day
     const curses: number[] = [];
-    if (rec.curse != null) curses.push(rec.curse);
+    if (rec.curse != null) curses.push(this.mapT(rec.curse));
     if (rec.treasure && tp?.treasure && treasureSkillOf(tp.treasure.cards[rec.treasure.card]) === 'curse' && rec.treasure.target != null)
-      curses.push(rec.treasure.target);
+      curses.push(this.mapT(rec.treasure.target));
     s.curses = curses;
 
     const list = [...deaths.entries()].map(([seat, causes]) => ({ seat, causes })).sort((a, b) => a.seat - b.seat);
@@ -1167,43 +1413,83 @@ export class Game {
 
   nightInputs(): NightInputs {
     const rec = this.currentNight();
+    const m = (x: number) => this.mapT(x);
     const knives: NightInputs['knives'] = [];
-    if (rec.treasure?.kill != null) knives.push({ target: rec.treasure.kill, piercing: false });
-    if (rec.treasure?.kill2 != null) knives.push({ target: rec.treasure.kill2, piercing: false });
-    if (rec.wolfTarget != null) knives.push({ target: rec.wolfTarget, piercing: false });
+    if (rec.treasure?.kill != null) knives.push({ target: m(rec.treasure.kill), piercing: false });
+    if (rec.treasure?.kill2 != null) knives.push({ target: m(rec.treasure.kill2), piercing: false });
+    if (rec.masque?.kill != null) knives.push({ target: m(rec.masque.kill), piercing: false });
+    if (rec.wolfTarget != null) knives.push({ target: m(rec.wolfTarget), piercing: false });
     if (rec.mechKill?.length) {
-      knives.push({ target: rec.mechKill[0], piercing: false });
-      if (rec.mechKill[1] != null) knives.push({ target: rec.mechKill[1], piercing: true });
+      knives.push({ target: m(rec.mechKill[0]), piercing: false });
+      if (rec.mechKill[1] != null) knives.push({ target: m(rec.mechKill[1]), piercing: true });
     }
     const guards: NightInputs['guards'] = [];
-    if (rec.guard != null) guards.push({ target: rec.guard, blocksPoison: false });
+    if (rec.guard != null) guards.push({ target: m(rec.guard), blocksPoison: false });
     const mechSk = this.mechSkill();
-    if (rec.mechSkill != null && mechSk === 'guard') guards.push({ target: rec.mechSkill, blocksPoison: true });
+    if (rec.mechSkill != null && mechSk === 'guard') guards.push({ target: m(rec.mechSkill), blocksPoison: true });
     const tp = this.s.players.find((p) => p.role === 'treasure');
     const tSkill = rec.treasure && tp?.treasure ? treasureSkillOf(tp.treasure.cards[rec.treasure.card]) : 'none';
-    if (rec.treasure?.target != null && tSkill === 'guard') guards.push({ target: rec.treasure.target, blocksPoison: false });
+    if (rec.treasure?.target != null && tSkill === 'guard') guards.push({ target: m(rec.treasure.target), blocksPoison: false });
     const dreams: NightInputs['dreams'] = [];
     const dreamer = this.s.players.find((p) => p.role === 'dreamer');
-    if (rec.dream != null && dreamer)
-      dreams.push({ by: dreamer.seat, target: rec.dream, consecutive: dreamer.dreamLast === rec.dream });
+    if (rec.dream != null && dreamer) {
+      const hit = m(rec.dream);
+      dreams.push({ by: dreamer.seat, target: hit, consecutive: dreamer.dreamLast === hit });
+    }
     if (rec.treasure?.target != null && tSkill === 'dream' && tp) {
       // 盗宝摄梦隔夜梦亡: the same sleepwalker on two successive uses of the card (one night apart)
       const last = tp.treasure?.lastDream;
-      const consecutive = !!last && last.night === this.s.night - 2 && last.target === rec.treasure.target;
-      dreams.push({ by: tp.seat, target: rec.treasure.target, consecutive });
+      const hit = m(rec.treasure.target);
+      const consecutive = !!last && last.night === this.s.night - 2 && last.target === hit;
+      dreams.push({ by: tp.seat, target: hit, consecutive });
     }
-    const poisons: number[] = [];
-    if (rec.witch?.poison != null) poisons.push(rec.witch.poison);
-    if (rec.poison != null) poisons.push(rec.poison);
-    if (rec.mechSkill != null && mechSk === 'poison') poisons.push(rec.mechSkill);
-    if (rec.treasure?.target != null && tSkill === 'poison') poisons.push(rec.treasure.target);
+    // 女巫不能自救 also through a swap: the antidote is spent but has no effect
+    const witch = this.s.players.find((p) => p.role === 'witch');
+    let save = rec.witch?.save != null ? m(rec.witch.save) : null;
+    if (save != null && witch && save === witch.seat && !this.witchCanSelfSave()) save = null;
+    const poisons: NightInputs['poisons'] = [];
+    if (rec.witch?.poison != null) poisons.push({ target: m(rec.witch.poison), witch: true });
+    if (rec.poison != null) poisons.push({ target: m(rec.poison), witch: false });
+    if (rec.mechSkill != null && mechSk === 'poison') poisons.push({ target: m(rec.mechSkill), witch: false });
+    if (rec.treasure?.target != null && tSkill === 'poison') poisons.push({ target: m(rec.treasure.target), witch: false });
+    // 舞池: the dancer on the floor makes the floor knife-immune; mixed floors lose their minority
+    const floor = (rec.dance ?? []).map(m);
+    const dancerSeat = this.seatOf('dancer');
+    const knifeImmune = dancerSeat != null && floor.includes(dancerSeat) ? floor : [];
+    const extra: NonNullable<NightInputs['extra']> = [];
+    if (floor.length === 3) {
+      const masked = rec.masque?.mask != null ? m(rec.masque.mask) : null;
+      const side = (x: number) => {
+        const f = this.factionOf(this.p(x));
+        return x === masked ? (f === 'wolf' ? 'good' : 'wolf') : f;
+      };
+      const wolves = floor.filter((x) => side(x) === 'wolf');
+      const goods = floor.filter((x) => side(x) === 'good');
+      if (wolves.length && goods.length) for (const x of wolves.length < goods.length ? wolves : goods) extra.push({ seat: x, cause: 'dance' });
+    }
+    const immune: number[] = [];
+    for (const r of ['dancer', 'masque'] as const) {
+      const seat = this.seatOf(r);
+      if (seat != null) immune.push(seat);
+    }
+    // 狼美人 poisoned tonight takes the charmed player along
+    const lovers: NonNullable<NightInputs['lovers']> = [];
+    const beauty = this.s.players.find((p) => p.role === 'wolfbeauty' && p.alive);
+    if (beauty) {
+      const target = rec.charm != null ? m(rec.charm) : this.s.charm?.by === beauty.seat ? this.s.charm.target : null;
+      if (target != null) lovers.push({ beauty: beauty.seat, target });
+    }
     return {
       knives,
       guards,
       dreams,
-      save: rec.witch?.save ?? null,
+      save,
       poisons,
       dreamBlocksPoison: this.s.config.rules.dreamBlocksPoison,
+      knifeImmune,
+      witchPoisonImmune: immune,
+      extra,
+      lovers,
     };
   }
 
@@ -1213,6 +1499,10 @@ export class Game {
       const seat = this.seatOf(role);
       return seat ? `${ROLES[role].name}(${seat}号)` : ROLES[role].name;
     };
+    for (const by of ['magician', 'trickster', 'wolfwizard'] as const) {
+      const pair = rec.swaps?.[by];
+      if (pair) L.push(pair.length === 2 ? `${who(by)}交换了${pair[0]}号和${pair[1]}号` : `${who(by)}没有交换`);
+    }
     if (rec.mixed !== undefined) L.push(`${who('mixed')}选择${rec.mixed}号为榜样`);
     if (rec.mechLearn !== undefined)
       L.push(
@@ -1229,9 +1519,20 @@ export class Game {
       if (rec.treasure.kill2 != null) line += `，第二刀击杀${rec.treasure.kill2}号`;
       L.push(line);
     }
+    if (rec.dance?.length) L.push(`${who('dancer')}安排共舞：${nums(rec.dance)}`);
+    if (rec.masque) {
+      const parts = [rec.masqueVerify?.target != null ? `验证${rec.masqueVerify.target}号` : '', rec.masque.mask != null ? `给${rec.masque.mask}号面具` : '', rec.masque.kill != null ? `击杀${rec.masque.kill}号` : ''].filter(Boolean);
+      L.push(`${who('masque')}${parts.length ? parts.join('，') : '没有行动'}`);
+    }
     if (rec.dream !== undefined && rec.dream != null) L.push(`${who('dreamer')}摄梦${rec.dream}号`);
     if (rec.guard !== undefined) L.push(rec.guard == null ? `${who('guard')}空守` : `${who('guard')}守护${rec.guard}号`);
     if (rec.wolfTarget !== undefined) L.push(rec.wolfTarget == null ? '狼人空刀' : `狼人击杀${rec.wolfTarget}号`);
+    if (rec.charm != null) L.push(`${who('wolfbeauty')}魅惑${rec.charm}号`);
+    if (rec.confess != null) {
+      const c = this.s.confession;
+      const hit = c && c.target !== rec.confess ? `（交换后为${c.target}号）` : '';
+      L.push(`${who('wolfgirl')}向${rec.confess}号表白${hit}：${c?.turned ? '平民成为狼混' : '对方拒绝'}`);
+    }
     if (rec.mechKill?.length)
       L.push(
         `${who('mechwolf')}击杀${rec.mechKill[0]}号` + (rec.mechKill[1] != null ? `，破盾刀击杀${rec.mechKill[1]}号` : ''),
@@ -1528,12 +1829,104 @@ export class Game {
     }
     // exile
     if (max === 0) return this.noExile(now, '无人得票，今天无人出局');
-    if (tops.length === 1) return this.exile(tops[0], now);
+    if (tops.length === 1) return this.exileOrPrince(tops[0], ph.context, now);
     if (ph.context === 'exilePk') return this.noExile(now, '再次平票，今天无人出局');
     s.exilePk = tops;
     const order = tops.slice().sort((a, b) => a - b);
     this.announce(now, `${nums(tops)}平票，请平票的玩家进行PK发言。`, ['pk_speech']);
     s.phase = { kind: 'speech', context: 'exilePk', order, idx: 0, startedAt: now };
+  }
+
+  /** 定序王子: every exile result waits a fixed window while the card is in the pool and unused
+   *  (also when the prince is dead or the card is buried by 盗宝大师, so the window reveals nothing) */
+  private exileOrPrince(target: number, context: VoteContext, now: number): void {
+    const s = this.s;
+    const prince = s.players.find((p) => p.role === 'prince');
+    if (!(s.config.roles.prince ?? 0) || prince?.skillUsed) return this.exile(target, now);
+    this.announce(now, `放逐投票得票最多的是${target}号玩家。请定序王子确认是否发动技能。`, [
+      'vote_top',
+      numClip(target),
+      'prince_window',
+    ]);
+    s.phase = {
+      kind: 'princeWindow',
+      deadline: now + this.clipsDuration(['vote_top', 'n1', 'prince_window']) + T.princeWindow * this.k,
+      target,
+      context,
+      used: false,
+    };
+  }
+
+  private princeUse(seat: number, use: boolean, now: number): string | null {
+    const s = this.s;
+    const ph = s.phase;
+    if (ph.kind !== 'princeWindow') return '现在不能发动定序王子技能';
+    const pl = this.p(seat);
+    if (pl.role !== 'prince' || !pl.alive) return '你没有可以发动的技能';
+    if (pl.skillUsed) return '你已经发动过技能了';
+    if (!use) {
+      ph.declined = true; // private: the window still runs its full (fixed) length
+      return null;
+    }
+    pl.skillUsed = true;
+    pl.revealed = true;
+    ph.used = true;
+    this.announce(now, `${seat}号玩家翻牌为定序王子，本次放逐作废。请定序王子发言，之后重新投票。`, [
+      numClip(seat),
+      'prince_flip',
+      'prince_speech',
+    ]);
+    this.log('skill', `${seat}号翻牌为定序王子，${ph.target}号的放逐作废，重新投票`);
+    s.exilePk = null;
+    s.phase = { kind: 'speech', context: 'prince', order: [seat], idx: 0, startedAt: now };
+    return null;
+  }
+
+  private finishPrinceWindow(now: number): void {
+    const ph = this.s.phase;
+    if (ph.kind !== 'princeWindow' || ph.used) return;
+    this.exile(ph.target, now);
+  }
+
+  // ── 骑士 ──
+
+  duelWindow(): boolean {
+    const ph = this.s.phase;
+    return ph.kind === 'speech' && (ph.context === 'discussion' || ph.context === 'exilePk');
+  }
+
+  private duel(seat: number, target: number, now: number): string | null {
+    const s = this.s;
+    const pl = this.p(seat);
+    if (pl.role !== 'knight' || !pl.alive) return '你不能决斗';
+    if (pl.skillUsed) return '你已经决斗过了';
+    if (!this.duelWindow() || s.paused) return '只能在放逐发言环节决斗';
+    if (!this.validSeat(target) || !this.p(target).alive || target === seat) return '不能决斗这名玩家';
+    const ph = s.phase as Extract<typeof s.phase, { kind: 'speech' }>;
+    pl.skillUsed = true;
+    pl.revealed = true;
+    this.announce(now, `${seat}号玩家翻牌为骑士，决斗${target}号玩家。`, [numClip(seat), 'knight_duel', numClip(target), 'player']);
+    const t = this.p(target);
+    if (this.factionOf(t) === 'wolf') {
+      // the wolf falls without last words and night falls at once (狼美人's charm fails)
+      s.pending = s.pending.filter((d) => d.seat !== target);
+      this.kill(target, ['duel'], 'day', s.day);
+      this.announce(now, `${target}号玩家是狼人，出局。即将进入黑夜。`, [numClip(target), 'duel_wolf']);
+      this.log('skill', `${seat}号骑士决斗${target}号：狼人出局，直接进入黑夜`);
+      if (this.checkEnd(now)) return null;
+      s.dayQueue = [];
+      s.resume = null;
+      if (s.sheriff === target && !s.badgeLost) this.enterDeathSkills(now, [{ seat: target, causes: ['duel'] }], []);
+      else this.interlude(now);
+      return null;
+    }
+    this.kill(seat, ['duel'], 'day', s.day);
+    this.announce(now, `${target}号玩家是好人，骑士出局。`, [numClip(target), 'duel_good']);
+    this.log('skill', `${seat}号骑士决斗${target}号：好人，骑士出局`);
+    if (this.checkEnd(now)) return null;
+    // the knight leaves last words, then the speeches go on where they were
+    this.enterDeathSkills(now, [{ seat, causes: ['duel'] }], [seat], { context: ph.context, order: ph.order, idx: ph.idx });
+    return null;
   }
 
   // ── speeches ──
@@ -1582,9 +1975,27 @@ export class Game {
         return this.nextStage(now);
       case 'exilePk':
         return this.startExileVote(now, true);
+      case 'prince':
+        // 定序王子 spoke: a fresh exile vote among everyone alive
+        return this.startExileVote(now, false);
       case 'lastWords':
-        return this.nextStage(now);
+        return this.afterDeaths(now);
     }
+  }
+
+  /** after a death batch (and its last words): continue an interrupted speech or the day */
+  private afterDeaths(now: number): void {
+    const s = this.s;
+    const r = s.resume;
+    if (!r) return this.nextStage(now);
+    s.resume = null;
+    let idx = r.idx;
+    while (idx < r.order.length && !this.speechEligible(r.order[idx], r.context)) idx++;
+    if (idx < r.order.length) {
+      s.phase = { kind: 'speech', context: r.context, order: r.order, idx, startedAt: now };
+      return;
+    }
+    this.finishSpeeches(r.context, now);
   }
 
   // ── deaths ──
@@ -1649,13 +2060,8 @@ export class Game {
       done: false,
     }));
     this.announce(now, '请出局的玩家确认是否发动技能。', ['death_skill']);
-    s.phase = {
-      kind: 'deathSkills',
-      entries,
-      deadline: now + T.deathSkills * this.k,
-      lastWords: lastWords.slice(),
-      resume: resume ?? null,
-    };
+    if (resume) s.resume = resume;
+    s.phase = { kind: 'deathSkills', entries, deadline: now + T.deathSkills * this.k, lastWords: lastWords.slice() };
   }
 
   private shoot(seat: number, target: number | null, now: number): string | null {
@@ -1766,20 +2172,7 @@ export class Game {
       s.phase = { kind: 'speech', context: 'lastWords', order: lw, idx: 0, startedAt: now };
       return;
     }
-    if (ph.resume) {
-      // continue the discussion after a 负伤 sheriff went out mid-way
-      const r = ph.resume;
-      s.phase = { kind: 'speech', context: r.context, order: r.order, idx: r.idx - 1, startedAt: now };
-      let idx = r.idx;
-      while (idx < r.order.length && !this.speechEligible(r.order[idx], r.context)) idx++;
-      if (idx < r.order.length) {
-        s.phase.idx = idx;
-        return;
-      }
-      this.finishSpeeches(r.context, now);
-      return;
-    }
-    this.nextStage(now);
+    this.afterDeaths(now);
   }
 
   /** 蒙面人 (or 盗宝大师 holding the 蒙面人 card tonight) */
@@ -1921,7 +2314,8 @@ export class Game {
     const s = this.s;
     const alive = this.aliveSeats();
     const candidates = pk ? (s.exilePk ?? []).filter((x) => this.p(x).alive) : alive;
-    if (pk && candidates.length === 1) return this.exile(candidates[0], now);
+    // a PK candidate died during the PK (骑士决斗): the other one is the result, 定序王子 may still void it
+    if (pk && candidates.length === 1) return this.exileOrPrince(candidates[0], 'exilePk', now);
     if (candidates.length === 0) return this.noExile(now, '今天无人出局');
     const voters = pk ? alive.filter((x) => !candidates.includes(x)) : alive;
     if (voters.length === 0) return this.noExile(now, '没有可以投票的玩家，今天无人出局');
@@ -1956,8 +2350,18 @@ export class Game {
       this.announce(now, `${seat}号玩家被放逐出局。`, [numClip(seat), 'exiled_suffix']);
       this.log('death', `${seat}号被放逐出局`);
     }
-    if (this.checkEnd(now)) return;
-    this.enterDeathSkills(now, [{ seat, causes: ['exile'] }], [seat]);
+    const dead: { seat: number; causes: DeathCause[] }[] = [{ seat, causes: ['exile'] }];
+    const lover = pl.role === 'wolfbeauty' && s.charm?.by === seat ? s.charm.target : null;
+    if (lover != null && lover !== seat && this.p(lover).alive) {
+      s.pending = s.pending.filter((d) => d.seat !== lover);
+      this.kill(lover, ['lovesick'], 'day', s.day);
+      this.announce(now, `${lover}号玩家殉情出局。`, [numClip(lover), 'lovesick_suffix']);
+      this.log('death', `${lover}号殉情出局`);
+      dead.push({ seat: lover, causes: ['lovesick'] });
+      // 狼美人 as the last wolf taking the last god/villager with her: the wolves win
+      if (this.checkEnd(now, 'wolf')) return;
+    } else if (this.checkEnd(now)) return;
+    this.enterDeathSkills(now, dead, [seat]);
   }
 
   private noExile(now: number, why: string): void {
@@ -1971,7 +2375,8 @@ export class Game {
   selfDestructWindow(): boolean {
     const ph = this.s.phase;
     if (ph.kind === 'withdraw') return true;
-    return ph.kind === 'speech' && ph.context !== 'lastWords';
+    // not during last words, nor the 定序王子's extra speech
+    return ph.kind === 'speech' && ph.context !== 'lastWords' && ph.context !== 'prince';
   }
 
   /** can this 白狼王 take someone with him right now */
@@ -1991,12 +2396,15 @@ export class Game {
       if (!this.validSeat(target) || !this.p(target).alive || target === seat) return '不能带走这名玩家';
       if (!this.wwkCanTake(seat)) return '你今晚被毒，自爆不能带人';
     }
+    // 狼女孩: her confessed player (still alive, even if unannounced-dead) goes out with her
+    const revenge = this.revengeTarget(seat);
+    const taken = target ?? revenge;
     const ph = s.phase;
     const inElection =
       s.election?.status === 'running' &&
       (ph.kind === 'withdraw' || (ph.kind === 'speech' && (ph.context === 'sheriff' || ph.context === 'sheriffPk')));
     // an unannounced night death is swallowed by the self-destruct (吞毒自爆)
-    s.pending = s.pending.filter((d) => d.seat !== seat && d.seat !== target);
+    s.pending = s.pending.filter((d) => d.seat !== seat && d.seat !== taken);
     this.kill(seat, ['selfdestruct'], 'day', s.day);
     const dead: { seat: number; causes: DeathCause[] }[] = [{ seat, causes: ['selfdestruct'] }];
     if (target != null) {
@@ -2011,6 +2419,18 @@ export class Game {
         'player',
       ]);
       this.log('selfDestruct', `${seat}号自爆（白狼王），带走${target}号`);
+    } else if (revenge != null) {
+      pl.revealed = true;
+      this.kill(revenge, ['revenge'], 'day', s.day);
+      dead.push({ seat: revenge, causes: ['revenge'] });
+      this.announce(now, `${seat}号玩家自爆，翻牌为狼女孩，表白对象${revenge}号玩家随之出局。`, [
+        numClip(seat),
+        'sd_suffix',
+        'wolfgirl_revenge',
+        numClip(revenge),
+        'revenge_suffix',
+      ]);
+      this.log('selfDestruct', `${seat}号自爆（狼女孩），表白对象${revenge}号随之出局`);
     } else {
       this.announce(now, `${seat}号玩家自爆。`, [numClip(seat), 'sd_suffix']);
       this.log('selfDestruct', `${seat}号自爆`);
@@ -2018,8 +2438,8 @@ export class Game {
     if (inElection && s.election) {
       const e = s.election;
       e.selfDestructs += 1;
-      e.candidates = e.candidates.filter((x) => x !== seat && x !== target);
-      if (e.pk) e.pk = e.pk.filter((x) => x !== seat && x !== target);
+      e.candidates = e.candidates.filter((x) => x !== seat && x !== taken);
+      if (e.pk) e.pk = e.pk.filter((x) => x !== seat && x !== taken);
       if (s.config.rules.badgeSwallow === 'single' || e.selfDestructs >= 2) {
         s.badgeLost = true;
         e.status = 'done';
@@ -2043,6 +2463,13 @@ export class Game {
     return null;
   }
 
+  /** the player a self-destructing 狼女孩 takes along, if any */
+  revengeTarget(seat: number): number | null {
+    const c = this.s.confession;
+    if (this.p(seat).role !== 'wolfgirl' || !c || c.by !== seat || c.target === seat) return null;
+    return this.p(c.target).alive ? c.target : null;
+  }
+
   // ── end ──
 
   winnerIfPendingApplied(): Winner | null {
@@ -2054,7 +2481,9 @@ export class Game {
     return this.winnerWith((pl) => pl.alive);
   }
 
-  private winnerWith(isAlive: (pl: Player) => boolean): Winner | null {
+  private winnerWith(isAlive: (pl: Player) => boolean): Winner | null;
+  private winnerWith(isAlive: (pl: Player) => boolean, raw: true): Winner | 'both' | null;
+  private winnerWith(isAlive: (pl: Player) => boolean, raw = false): Winner | 'both' | null {
     const totals = { god: 0, villager: 0, wolf: 0 };
     const alive = { god: 0, villager: 0, wolf: 0 };
     for (const pl of this.s.players) {
@@ -2064,14 +2493,15 @@ export class Game {
     }
     const goodWin = alive.wolf === 0;
     const wolfWin = (totals.god > 0 && alive.god === 0) || (totals.villager > 0 && alive.villager === 0);
-    if (goodWin && wolfWin) return this.s.config.rules.simultaneousWin;
+    if (goodWin && wolfWin) return raw ? 'both' : this.s.config.rules.simultaneousWin;
     if (goodWin) return 'good';
     if (wolfWin) return 'wolf';
     return null;
   }
 
-  private checkEnd(now: number): boolean {
-    const w = this.winnerNow();
+  private checkEnd(now: number, tieBreak?: Winner): boolean {
+    const both = this.winnerWith((pl) => pl.alive, true);
+    const w = both === 'both' ? (tieBreak ?? this.s.config.rules.simultaneousWin) : both;
     if (!w) return false;
     this.endGame(w, now);
     return true;
@@ -2139,6 +2569,8 @@ export class Game {
         return { kind: 'deathSkills', entries: ph.entries.map((e) => ({ seat: e.seat, done: e.done })) };
       case 'orderChoice':
         return { kind: 'orderChoice', sheriff: s.sheriff ?? 0 };
+      case 'princeWindow':
+        return { kind: 'princeWindow', target: ph.target };
       case 'ended':
         return { kind: 'ended', winner: s.winner ?? 'draw' };
     }
@@ -2154,6 +2586,7 @@ export class Game {
       case 'withdraw':
       case 'orderChoice':
       case 'deathSkills':
+      case 'princeWindow':
         return ph.deadline;
       default:
         return null;
@@ -2186,6 +2619,7 @@ export class Game {
           discussion: '发言',
           exilePk: '放逐PK发言',
           lastWords: '遗言',
+          prince: '定序王子发言',
         }[ph.context];
         const sub =
           ph.context === 'discussion' ? s.discussionNote : ph.context === 'lastWords' ? last?.text ?? null : null;
@@ -2206,6 +2640,8 @@ export class Game {
         return { title: '出局玩家确认技能', sub: last?.text ?? null };
       case 'orderChoice':
         return { title: '警长选择发言顺序', sub: `${s.sheriff}号警长请选择` };
+      case 'princeWindow':
+        return { title: `${ph.target}号玩家得票最多`, sub: '等待定序王子确认是否发动技能' };
       case 'ended':
         return {
           title: s.winner === 'good' ? '好人阵营胜利' : s.winner === 'wolf' ? '狼人阵营胜利' : '平局',
@@ -2255,6 +2691,9 @@ export class Game {
       const f = this.orderFirsts();
       return { kind: 'orderChoice', cwFirst: f.cw, ccwFirst: f.ccw };
     }
+    if (ph.kind === 'princeWindow' && pl.role === 'prince' && pl.alive && !pl.skillUsed) {
+      return { kind: 'prince', target: ph.target, decided: ph.used || !!ph.declined };
+    }
     return null;
   }
 
@@ -2279,6 +2718,15 @@ export class Game {
       } else if (step === 'maskedConfirm') {
         title = '蒙面人请确认身份';
         lines = ['你是蒙面人：夜间被刀、被毒或梦亡时不会立即出局，而是在第二天自己发言结束后出局。'];
+      } else if (step === 'confessed') {
+        title = '你被表白了';
+        lines = this.isLanghun(seat)
+          ? [
+              '狼女孩向你表白了：你是平民，现在成为狼混，与狼人阵营共同胜利。',
+              '你的身份牌仍是平民，预言家查验仍是好人，屠边时仍计入平民；你不知道狼女孩是谁。',
+            ]
+          : ['狼女孩向你表白了：你默认拒绝，身份、阵营和技能都不变。你不知道狼女孩是谁。'];
+        lines.push('狼女孩白天自爆时，你会随之出局。');
       } else if (step === 'wwkStatus') {
         title = '白狼王技能状态';
         lines = [disablesSkill(prev) ? '你的技能状态：不能发动（今晚被毒）' : '你的技能状态：可以发动（白天自爆时可以带走一人）'];
@@ -2292,11 +2740,19 @@ export class Game {
     const interactive = this.stepInteractive(step);
     if (step === 'wolves') {
       const pack = this.packSeats(false);
+      const noKnife = !this.knifeAllowed();
       return {
         kind: 'wolves',
-        title: night === 1 ? '狼人请互相确认身份，并选择今晚要击杀的玩家' : '请选择今晚要击杀的玩家',
-        lines: ['所有狼人选择同一目标并确认后生效；超时按多数票决定，平票随机。'],
-        options: this.aliveSeats(),
+        noKnife,
+        title: noKnife
+          ? '狼人请互相确认身份（首夜禁刀）'
+          : night === 1
+            ? '狼人请互相确认身份，并选择今晚要击杀的玩家'
+            : '请选择今晚要击杀的玩家',
+        lines: noKnife
+          ? ['首夜禁刀：今晚不能刀人。确认狼队友后点击确认。']
+          : ['所有狼人选择同一目标并确认后生效；超时按多数票决定，平票随机。'],
+        options: this.wolfKillOptions(),
         teammates: pack.map((x) => ({ seat: x, role: this.p(x).role, alive: this.p(x).alive })),
         picks: this.packSeats(true).map((x) => {
           const pk = rec.wolfPicks[String(x)];
@@ -2336,10 +2792,27 @@ export class Game {
         submitted: rec.witch ? { save: rec.witch.save, poison: rec.witch.poison } : null,
       };
     }
+    if (step === 'masque' && interactive) {
+      const o = this.masqueOptions(seat);
+      const lines = [`你的开刀状态：${o.canKill ? '可以开刀' : '不能开刀'}`];
+      if (s.night >= 2) lines.push('先验证一名玩家今晚是否在舞池中，再选择赐予面具的目标（被赐予面具的玩家在舞池中阵营相反）。');
+      if (pl.maskLast) lines.push(`昨晚面具：${pl.maskLast}号（今晚不能再给）`);
+      return {
+        kind: 'masque',
+        title: '假面请行动',
+        lines,
+        verifyOptions: s.night >= 2 ? o.verify : [],
+        verified: rec.masqueVerify ? { ...rec.masqueVerify } : null,
+        maskOptions: o.mask,
+        canKill: o.canKill,
+        killOptions: o.kill,
+        submitted: rec.masque ? { ...rec.masque } : null,
+      };
+    }
     if (step === 'treasure') {
       const tr = pl.treasure!;
       const allowed = [0, 1, 2].filter((c) => c < tr.cards.length && c !== tr.last);
-      const canKill = this.knifeHolder() === seat;
+      const canKill = this.knifeHolder() === seat && this.knifeAllowed();
       const lines = [
         `你的阵营：${tr.faction === 'wolf' ? '狼人阵营（底牌中有狼牌）' : tr.countsAs === 'god' ? '好人阵营（计入神职）' : '好人阵营（计入平民）'}`,
         night === 1 ? '首夜：请查看三张底牌并选择今晚使用的身份牌。' : `你的开刀状态：${canKill ? '可以开刀' : '不能开刀'}`,
@@ -2371,6 +2844,17 @@ export class Game {
       if (step === 'mechKill') {
         title = '机械狼带刀状态';
         lines = ['你的带刀状态：不能带刀（狼队还有存活的狼人）'];
+      } else if (step === 'magician') {
+        title = '魔术师';
+        lines =
+          s.night === 1 && !s.config.rules.magicianFirstNight
+            ? ['你是魔术师：第二晚起每晚可以交换两名玩家的号码。']
+            : ['可以交换的号码不足两个，今晚无法交换。'];
+      } else if (step === 'masque') {
+        title = '假面';
+        lines = ['你是假面：第二晚起可以验证舞池并赐予面具；狼队全部出局后由你开刀。'];
+      } else if (step === 'dancer' || step === 'trickster' || step === 'wolfwizard') {
+        lines = ['可以选择的玩家不足，今晚无法发动技能。'];
       } else if (step === 'mechSkill') {
         title = '机械狼技能';
         const sk = this.mechSkill();
@@ -2391,6 +2875,7 @@ export class Game {
       title,
       lines,
       options: opt.options,
+      min: opt.min,
       max: opt.max,
       allowNone: opt.allowNone,
       noneLabel,
@@ -2399,6 +2884,49 @@ export class Game {
       result: rec.results[step] ?? [],
     });
     switch (step) {
+      case 'magician':
+        return P(
+          '请选择交换号码的两名玩家',
+          ['今晚作用在其中一个号码上的技能会作用到另一名玩家身上。每个号码整局只能交换一次。'],
+          '不交换',
+          '交换',
+        );
+      case 'trickster':
+        return P(
+          '请选择交换号码的两名玩家',
+          [
+            '今晚作用在其中一个号码上的技能会作用到另一名玩家身上。每名玩家整局只能被你交换一次。',
+            pl.swapSkipped ? '你昨晚没有交换，今晚必须交换。' : '可以不交换，但不能连续两晚不交换。',
+          ],
+          '不交换',
+          '交换',
+        );
+      case 'wolfwizard':
+        return P('请选择再次更换座位的两名玩家', ['在魔术师之后再换一次：今晚作用在其中一个座位上的技能作用到另一名玩家身上。'], '不更换', '更换');
+      case 'dancer':
+        return P(
+          '请选择三名共舞的玩家',
+          ['三人阵营不同时人数少的一方出局；你选择自己共舞时三人免疫狼刀。每名玩家整局只能共舞一次。'],
+          '今晚不共舞',
+          '确认共舞',
+        );
+      case 'beauty':
+        return P(
+          '请选择魅惑目标',
+          [pl.charmLast ? `昨晚魅惑：${pl.charmLast}号（今晚不能再选）` : '你被放逐或被毒杀时，被魅惑的玩家殉情出局。'],
+          '不魅惑',
+          '魅惑',
+        );
+      case 'wolfgirl':
+        return P(
+          '请选择你要表白的玩家',
+          [
+            '被表白的平民成为狼混，与狼人阵营共同胜利；神职默认拒绝。你不会知道对方是否接受。',
+            '你白天自爆时，表白对象随之出局。整局只能表白一次。',
+          ],
+          '',
+          '表白',
+        );
       case 'mixed':
         return P('请选择你的榜样', ['你的胜利条件将与榜样的阵营相同。'], '', '确认榜样');
       case 'mechLearn':
@@ -2451,6 +2979,18 @@ export class Game {
   private submittedFor(step: NightStepId, rec: NightRecord): number[] | null {
     const one = (v: number | null | undefined) => (v === undefined ? null : v === null ? [] : [v]);
     switch (step) {
+      case 'magician':
+      case 'trickster':
+      case 'wolfwizard': {
+        const pair = rec.swaps?.[step];
+        return pair === undefined ? null : pair.slice();
+      }
+      case 'dancer':
+        return rec.dance === undefined ? null : rec.dance.slice();
+      case 'beauty':
+        return one(rec.charm);
+      case 'wolfgirl':
+        return one(rec.confess);
       case 'mixed':
         return one(rec.mixed);
       case 'mechLearn':
@@ -2508,16 +3048,37 @@ export class Game {
       const window = this.selfDestructWindow() && !this.s.paused;
       const available = pl.alive && window && this.s.phase.kind !== 'ended';
       const canTake = pl.role === 'whitewolfking' && this.wwkCanTake(seat);
+      const c = this.s.confession;
       sd = {
         available,
         canTake: pl.role === 'whitewolfking' && canTake,
         reason: !pl.alive ? '你已出局' : !window ? '只能在白天发言阶段自爆' : null,
         targets: pl.role === 'whitewolfking' && canTake ? this.aliveSeats().filter((x) => x !== seat) : [],
+        // shown by the number she picked (a swap may have redirected it; she cannot know)
+        revenge: this.revengeTarget(seat) != null && c ? c.picked : null,
       };
       if (pl.role === 'whitewolfking' && !this.wwkCanTake(seat) && available)
         sd.reason = '你今晚被毒，自爆不能带人';
     }
-    return { selfDestruct: sd, notes };
+    let duel: SkillView['duel'] = null;
+    if (pl.role === 'knight') {
+      const window = this.duelWindow() && !this.s.paused;
+      duel = {
+        available: pl.alive && !pl.skillUsed && window,
+        reason: !pl.alive ? '你已出局' : pl.skillUsed ? '你已经决斗过了' : !window ? '只能在放逐发言环节决斗' : null,
+        targets: this.aliveSeats().filter((x) => x !== seat),
+      };
+    }
+    if (pl.role === 'prince') notes.push(pl.skillUsed ? '定序技能：已使用' : '放逐投票产生结果后会询问你是否发动技能。');
+    if (pl.role === 'magician' || pl.role === 'trickster')
+      notes.push(pl.swapUsed.length ? `已交换过的号码：${nums(pl.swapUsed)}` : '还没有交换过号码');
+    if (pl.role === 'dancer') notes.push(pl.danced.length ? `已共舞过：${nums(pl.danced)}` : '还没有安排共舞');
+    if (pl.role === 'wolfbeauty') notes.push(this.s.charm?.by === seat ? `当前魅惑：${this.s.charm.target}号` : '当前没有魅惑对象');
+    const conf = this.s.confession;
+    if (pl.role === 'wolfgirl') notes.push(conf?.by === seat ? `表白对象：${conf.picked}号（你不知道对方是否接受）` : '尚未表白');
+    if (conf && conf.target === seat && conf.by !== seat)
+      notes.push(conf.turned ? '你被狼女孩表白，已成为狼混：与狼人阵营共同胜利。' : '你被狼女孩表白（默认拒绝，身份和阵营不变）。');
+    return { selfDestruct: sd, duel, notes };
   }
 
   privateInfo(seat: number): string[] {
@@ -2536,9 +3097,15 @@ export class Game {
       lines.push('你属于狼人阵营，但不与狼队见面，你们互不相识。');
     } else if (pl.role === 'mixed') {
       lines.push(pl.mixedModel ? `你的榜样是${pl.mixedModel}号，你的胜负与其阵营相同。` : '首夜请选择你的榜样。');
+    } else if (this.isLanghun(seat)) {
+      lines.push('你被狼女孩表白，已成为狼混：与狼人阵营共同胜利。你的身份牌仍是平民（查验为好人，屠边计入平民），你不知道狼女孩是谁。');
     } else {
       lines.push(f === 'wolf' ? '你属于狼人阵营。' : '你属于好人阵营。');
     }
+    const conf = this.s.confession;
+    if (conf && conf.target === seat && conf.by !== seat && !conf.turned)
+      lines.push('你被狼女孩表白了：神职默认拒绝，你的身份、阵营和技能都不变。狼女孩白天自爆时你会随之出局。');
+    if (pl.role === 'wolfgirl' && conf?.by === seat) lines.push(`你的表白对象：${conf.picked}号（白天自爆时其随之出局）。`);
     if (ROLES[pl.role].pack) {
       const mates = this.packSeats(false).filter((x) => x !== seat);
       if (mates.length)
@@ -2568,6 +3135,8 @@ export class Game {
       players: s.players.map((pl) => {
         let faction = this.factionOf(pl);
         if (pl.role === 'mixed') faction = pl.mixedModel ? this.factionOf(this.p(pl.mixedModel)) : 'good';
+        if (this.isLanghun(pl.seat)) faction = 'wolf';
+        const conf = s.confession;
         return {
           seat: pl.seat,
           name: names(pl.seat),
@@ -2578,6 +3147,10 @@ export class Game {
           note:
             pl.role === 'mixed' && pl.mixedModel
               ? `榜样：${pl.mixedModel}号`
+              : this.isLanghun(pl.seat)
+                ? '狼混'
+                : pl.role === 'wolfgirl' && conf?.by === pl.seat
+                  ? `表白：${conf.target}号`
               : pl.role === 'mechwolf' && pl.mech?.learned
                 ? `学习：${ROLES[pl.mech.learned].name}`
                 : pl.death?.note ?? null,

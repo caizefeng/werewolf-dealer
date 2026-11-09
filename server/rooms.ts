@@ -3,7 +3,7 @@
 import { randomBytes } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { playerCountOf, validateConfig, type GameConfig } from '../shared/config.ts';
+import { DEFAULT_RULES, playerCountOf, validateConfig, type GameConfig } from '../shared/config.ts';
 import { mechSkillFor, ROLES, type RoleId } from '../shared/roles.ts';
 import type { GameAction, GameView, OwnerCommand, PrivateView, RoomView, SeatView } from '../shared/types.ts';
 import { Game, nightStepNames, type ClipDurations } from './game/engine.ts';
@@ -461,6 +461,9 @@ export class RoomManager {
           fs.rmSync(path.join(dir, f), { force: true });
           continue;
         }
+        // snapshots written by older versions lack newer rule options: use their defaults
+        data.config = { ...data.config, rules: { ...DEFAULT_RULES, ...data.config.rules } };
+        if (data.game) data.game.config = { ...data.game.config, rules: { ...DEFAULT_RULES, ...data.game.config.rules } };
         const room = new Room(data, this);
         if (room.game && data.savedAt) room.game.resumeAfterDowntime(now - data.savedAt);
         this.rooms.set(data.id, room);

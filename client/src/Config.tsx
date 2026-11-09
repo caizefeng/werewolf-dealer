@@ -143,6 +143,10 @@ export function ConfigEditor({ value, onChange }: { value: GameConfig; onChange:
             set={(v) => setRule('witchSelfSave', v as RuleOptions['witchSelfSave'])}
           />
           <Toggle label="梦游者免疫毒药" on={value.rules.dreamBlocksPoison} set={(v) => setRule('dreamBlocksPoison', v)} />
+          <Toggle label="首夜禁刀" on={value.rules.firstNightNoKnife} set={(v) => setRule('firstNightNoKnife', v)} />
+          {(value.roles.magician ?? 0) > 0 && (
+            <Toggle label="魔术师首夜可以交换" on={value.rules.magicianFirstNight} set={(v) => setRule('magicianFirstNight', v)} />
+          )}
           <Select
             label="双方同时达成胜利条件"
             value={value.rules.simultaneousWin}

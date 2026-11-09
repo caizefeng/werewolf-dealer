@@ -3,12 +3,20 @@ import type { GameConfig } from './config.ts';
 import type { MechSkill, RoleId } from './roles.ts';
 
 export type NightStepId =
+  | 'magician'
+  | 'trickster'
+  | 'wolfwizard'
   | 'mixed'
   | 'mechLearn'
   | 'treasure'
+  | 'dancer'
+  | 'masque'
   | 'dreamer'
   | 'guard'
   | 'wolves'
+  | 'beauty'
+  | 'wolfgirl'
+  | 'confessed'
   | 'mechKill'
   | 'witch'
   | 'poisoner'
@@ -48,7 +56,7 @@ export interface SeatView {
   claimable: boolean;
 }
 
-export type SpeechContext = 'sheriff' | 'sheriffPk' | 'discussion' | 'exilePk' | 'lastWords';
+export type SpeechContext = 'sheriff' | 'sheriffPk' | 'discussion' | 'exilePk' | 'lastWords' | 'prince';
 export type VoteContext = 'sheriff' | 'sheriffPk' | 'exile' | 'exilePk';
 
 export type PhaseView =
@@ -69,6 +77,7 @@ export type PhaseView =
   | { kind: 'vote'; context: VoteContext; candidates: number[]; voters: number[]; voted: number[] }
   | { kind: 'deathSkills'; entries: { seat: number; done: boolean }[] }
   | { kind: 'orderChoice'; sheriff: number }
+  | { kind: 'princeWindow'; target: number }
   | { kind: 'ended'; winner: Winner };
 
 /** Generic seat-picking night prompt */
@@ -78,7 +87,8 @@ export interface PickPrompt {
   title: string;
   lines: string[];
   options: number[];
-  /** max number of targets (2 for 机械狼双刀) */
+  /** min/max number of targets (2 for swaps, 3 for 舞者, max 2 for 机械狼双刀) */
+  min: number;
   max: number;
   /** may submit without a target */
   allowNone: boolean;
@@ -101,6 +111,8 @@ export interface WolvesPrompt {
   myConfirmed: boolean;
   locked: boolean;
   final: number | null | undefined;
+  /** 首夜禁刀: the pack only confirms each other tonight */
+  noKnife?: boolean;
 }
 
 export interface WitchPrompt {
@@ -173,8 +185,29 @@ export interface OrderPrompt {
   ccwFirst: number;
 }
 
+export interface MasquePrompt {
+  kind: 'masque';
+  title: string;
+  lines: string[];
+  verifyOptions: number[];
+  /** verify submitted: target (null = skipped) and its result line */
+  verified: { target: number | null; result: string } | null;
+  maskOptions: number[];
+  canKill: boolean;
+  killOptions: number[];
+  submitted: { mask: number | null; kill: number | null } | null;
+}
+
+export interface PrincePrompt {
+  kind: 'prince';
+  target: number;
+  decided: boolean;
+}
+
 export type Prompt =
   | PickPrompt
+  | MasquePrompt
+  | PrincePrompt
   | WolvesPrompt
   | WitchPrompt
   | TreasurePrompt
@@ -186,7 +219,10 @@ export type Prompt =
 
 export interface SkillView {
   /** null when the role can never self-destruct */
-  selfDestruct: { available: boolean; canTake: boolean; reason: string | null; targets: number[] } | null;
+  /** `revenge`: 狼女孩's confessed player, who goes out with her (null when none is alive) */
+  selfDestruct: { available: boolean; canTake: boolean; reason: string | null; targets: number[]; revenge?: number | null } | null;
+  /** 骑士: null when not a knight */
+  duel: { available: boolean; reason: string | null; targets: number[] } | null;
   /** private status lines (potions, last guard target …) */
   notes: string[];
 }
@@ -291,6 +327,10 @@ export type GameAction =
   | { type: 'badge'; target: number | null }
   | { type: 'skillDone' }
   | { type: 'mask'; use: boolean }
+  | { type: 'duel'; target: number }
+  | { type: 'masqueVerify'; target: number | null }
+  | { type: 'masqueAct'; mask: number | null; kill: number | null }
+  | { type: 'prince'; use: boolean }
   | { type: 'order'; dir: 'cw' | 'ccw' };
 
 export type OwnerCommand =

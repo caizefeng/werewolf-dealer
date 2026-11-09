@@ -3,7 +3,9 @@
 import { expect, test } from '@playwright/test';
 import type { RoomView } from '../../shared/types.ts';
 import type { Bot } from './bots.ts';
-import { PORT, autoSpeech, botTakeover, createRoom, fillWithBots, newPlayer, pick, shot, watchErrors } from './helpers.ts';
+import { PORT, autoSpeech, botTakeover, createRoom, fillWithBots, newPlayer, pick, shot, watchErrors, closePlayers } from './helpers.ts';
+
+test.afterEach(closePlayers);
 
 void PORT;
 

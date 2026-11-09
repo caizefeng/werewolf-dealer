@@ -11,7 +11,18 @@ import type {
   Winner,
 } from '../../shared/types.ts';
 
-export type DeathCause = 'knife' | 'poison' | 'dream' | 'exile' | 'shot' | 'whitewolf' | 'selfdestruct';
+export type DeathCause =
+  | 'knife'
+  | 'poison'
+  | 'dream'
+  | 'exile'
+  | 'shot'
+  | 'whitewolf'
+  | 'selfdestruct'
+  | 'duel'
+  | 'dance'
+  | 'lovesick'
+  | 'revenge';
 
 export interface DeathRecord {
   causes: DeathCause[];
@@ -61,6 +72,18 @@ export interface Player {
   mech: MechState | null;
   treasure: TreasureState | null;
   mixedModel: number | null;
+  /** 魔术师 / 诡术师: numbers already swapped */
+  swapUsed: number[];
+  /** 诡术师 skipped last night (cannot skip twice in a row) */
+  swapSkipped: boolean;
+  /** 舞者: numbers that already danced */
+  danced: number[];
+  /** 狼美人: last night's charm (number) */
+  charmLast: number | null;
+  /** 假面: last night's mask (number) */
+  maskLast: number | null;
+  /** 骑士 / 定序王子: one-shot skill used */
+  skillUsed: boolean;
 }
 
 export interface NightRecord {
@@ -71,6 +94,14 @@ export interface NightRecord {
   dream?: number | null;
   guard?: number | null;
   wolfPicks: Record<string, { target: number | null; confirmed: boolean }>;
+  /** number swaps tonight in order (魔术师, 诡术师, 狼术师); [] = chose not to swap */
+  swaps?: Partial<Record<'magician' | 'trickster' | 'wolfwizard', number[]>>;
+  dance?: number[];
+  masqueVerify?: { target: number | null; result: string };
+  masque?: { mask: number | null; kill: number | null };
+  charm?: number | null;
+  /** 狼女孩's confession (the number she picked) */
+  confess?: number | null;
   wolfTarget?: number | null;
   mechKill?: number[];
   witchSaw?: number[] | null;
@@ -135,10 +166,9 @@ export type Phase =
       deadline: number;
       /** who gets last words once the skills are settled */
       lastWords: number[];
-      /** speech to continue afterwards (a 负伤 蒙面人 sheriff dying mid-discussion) */
-      resume?: { context: SpeechContext; order: number[]; idx: number } | null;
     }
   | { kind: 'orderChoice'; deadline: number }
+  | { kind: 'princeWindow'; deadline: number; target: number; context: VoteContext; used: boolean; declined?: boolean }
   | { kind: 'ended' };
 
 export type DayStage = 'election' | 'nightDeaths' | 'discussion' | 'exile';
@@ -173,6 +203,12 @@ export interface GameState {
   pending: { seat: number; causes: DeathCause[] }[];
   /** 蒙面人 hit at night: alive until their own speech the next day */
   wounded: { seat: number; causes: DeathCause[]; night: number }[];
+  /** 狼美人's current charm (the charmed player) */
+  charm: { by: number; target: number } | null;
+  /** 狼女孩's confession: the number she picked, the player hit (after swaps), whether a 平民 became 狼混 */
+  confession?: { by: number; picked: number; target: number; turned: boolean } | null;
+  /** speech phase to continue once deaths/last words in the middle of it are settled */
+  resume: { context: SpeechContext; order: number[]; idx: number } | null;
   /** night-1 deaths get last words even if announced late */
   pendingNight: number;
   nights: NightRecord[];

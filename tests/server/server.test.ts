@@ -291,10 +291,19 @@ describe('server', () => {
     const before = await clients[2].waitFor((v) => v.game?.time === 'dealt');
     for (const c of clients) await c.close();
     await srv.close();
+    // a snapshot written by an older version has no newer rule options
+    const file = path.join(dataDir, 'rooms', `${room}.json`);
+    const snap = JSON.parse(fs.readFileSync(file, 'utf8'));
+    for (const rules of [snap.config.rules, snap.game.config.rules]) {
+      delete rules.firstNightNoKnife;
+      delete rules.magicianFirstNight;
+    }
+    fs.writeFileSync(file, JSON.stringify(snap));
     srv = await startServer({ port: 0, host: '127.0.0.1', dataDir, staticDir: null, quiet: true, timeScale: 0.02 });
     const again = await Client.connect(srv.port, room, ids[2], 'p2');
     expect(again.view?.you.seat).toBe(3);
     expect(again.view?.game?.you?.role).toBe(before.game!.you!.role);
+    expect(again.view?.config.rules).toMatchObject({ firstNightNoKnife: false, magicianFirstNight: true });
     await again.close();
   });
 

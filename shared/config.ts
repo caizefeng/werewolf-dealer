@@ -19,6 +19,10 @@ export interface RuleOptions {
   voteSeconds: number;
   /** seconds for 上警 sign-up */
   signupSeconds: number;
+  /** 魔术师 may swap on night 1 (诡术之境) or only from night 2 (魔幻对决) */
+  magicianFirstNight: boolean;
+  /** 首夜禁刀: nobody may kill on night 1 (狼女孩 board); missing in old snapshots = false */
+  firstNightNoKnife: boolean;
 }
 
 export type RoleCounts = Partial<Record<RoleId, number>>;
@@ -39,6 +43,8 @@ export const DEFAULT_RULES: RuleOptions = {
   wolfSeconds: 45,
   voteSeconds: 20,
   signupSeconds: 15,
+  magicianFirstNight: true,
+  firstNightNoKnife: false,
 };
 
 export interface BoardPreset {
@@ -90,6 +96,34 @@ export const BOARDS: BoardPreset[] = [
     name: '盗宝大师',
     note: '15张牌，埋3张底牌',
     roles: { treasure: 1, psychic: 1, poisoner: 1, hunter: 1, dreamer: 1, masked: 1, wolfking: 1, wolf: 3, villager: 5 },
+  },
+  {
+    id: 'lmqs',
+    name: '狼美骑士',
+    roles: { seer: 1, witch: 1, guard: 1, knight: 1, wolfbeauty: 1, wolf: 3, villager: 4 },
+  },
+  {
+    id: 'jmwh',
+    name: '假面舞会',
+    roles: { seer: 1, witch: 1, whitegod: 1, dancer: 1, masque: 1, wolf: 3, villager: 4 },
+  },
+  {
+    id: 'gszj',
+    name: '诡术之境',
+    roles: { seer: 1, witch: 1, magician: 1, prince: 1, trickster: 1, wolf: 3, villager: 4 },
+  },
+  {
+    id: 'mhdj',
+    name: '魔幻对决',
+    roles: { psychic: 1, witch: 1, hunter: 1, magician: 1, wolfwizard: 1, wolf: 3, villager: 4 },
+    rules: { magicianFirstNight: false },
+  },
+  {
+    id: 'lnh',
+    name: '狼女孩',
+    note: '首夜禁刀',
+    roles: { seer: 1, poisoner: 1, hunter: 1, guard: 1, wolfgirl: 1, wolf: 3, villager: 4 },
+    rules: { firstNightNoKnife: true },
   },
   {
     id: 'n10',
@@ -171,7 +205,8 @@ export function validateConfig(cfg: GameConfig): string | null {
   if (!['double', 'single'].includes(r.badgeSwallow)) return '规则无效';
   if (!['never', 'firstNight', 'always'].includes(r.witchSelfSave)) return '规则无效';
   if (!['wolf', 'good', 'draw'].includes(r.simultaneousWin)) return '规则无效';
-  if (typeof r.sheriff !== 'boolean' || typeof r.dreamBlocksPoison !== 'boolean') return '规则无效';
+  for (const b of [r.sheriff, r.dreamBlocksPoison, r.magicianFirstNight, r.firstNightNoKnife])
+    if (typeof b !== 'boolean') return '规则无效';
   return null;
 }
 

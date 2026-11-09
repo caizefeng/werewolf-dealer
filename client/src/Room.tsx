@@ -278,6 +278,7 @@ function seatStatus(v: RoomView, s: SeatView): { chips: string[]; cls: string[] 
     const e = ph.entries.find((x) => x.seat === s.seat);
     if (e) chips.push(e.done ? '已确认' : '技能确认中');
   }
+  if (ph.kind === 'princeWindow' && ph.target === s.seat) chips.push('得票最多');
   if (ph.kind === 'dealt' && s.viewedRole) chips.push('已看牌');
   return { chips, cls };
 }

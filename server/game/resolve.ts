@@ -1,4 +1,5 @@
 // Night settlement. Pure function: given what everyone did tonight, who dies and why.
+// All targets are actual players (number swaps are applied before calling this).
 import type { DeathCause } from './state.ts';
 
 export interface NightInputs {
@@ -10,8 +11,17 @@ export interface NightInputs {
   dreams: { by: number; target: number; consecutive: boolean }[];
   /** 女巫解药 target */
   save: number | null;
-  poisons: number[];
+  /** poisons; `witch` marks the witch's (舞者/假面 are immune to it) */
+  poisons: { target: number; witch: boolean }[];
   dreamBlocksPoison: boolean;
+  /** 舞者 dancing with the floor: the floor is immune to knives */
+  knifeImmune?: number[];
+  /** 舞者 / 假面: the witch's poison has no effect on them */
+  witchPoisonImmune?: number[];
+  /** deaths decided elsewhere that nothing blocks (舞池) */
+  extra?: { seat: number; cause: DeathCause }[];
+  /** 狼美人 poisoned tonight → the charmed player dies with her (殉情) */
+  lovers?: { beauty: number; target: number }[];
 }
 
 export function resolveNight(inp: NightInputs): Map<number, DeathCause[]> {
@@ -24,10 +34,12 @@ export function resolveNight(inp: NightInputs): Map<number, DeathCause[]> {
   const dreamImmune = new Set(inp.dreams.map((d) => d.target));
   const guarded = new Set(inp.guards.map((g) => g.target));
   const poisonGuarded = new Set(inp.guards.filter((g) => g.blocksPoison).map((g) => g.target));
+  const knifeImmune = new Set(inp.knifeImmune ?? []);
+  const witchImmune = new Set(inp.witchPoisonImmune ?? []);
 
   for (const k of inp.knives) {
     const t = k.target;
-    if (dreamImmune.has(t)) continue;
+    if (dreamImmune.has(t) || knifeImmune.has(t)) continue;
     const isGuarded = !k.piercing && guarded.has(t);
     const isSaved = inp.save === t;
     if (isGuarded && isSaved) add(t, 'knife'); // 同守同救
@@ -35,17 +47,25 @@ export function resolveNight(inp: NightInputs): Map<number, DeathCause[]> {
     else add(t, 'knife');
   }
   for (const p of inp.poisons) {
-    if (inp.dreamBlocksPoison && dreamImmune.has(p)) continue;
-    if (poisonGuarded.has(p)) continue;
-    add(p, 'poison');
+    if (p.witch && witchImmune.has(p.target)) continue;
+    if (inp.dreamBlocksPoison && dreamImmune.has(p.target)) continue;
+    if (poisonGuarded.has(p.target)) continue;
+    add(p.target, 'poison');
   }
   for (const d of inp.dreams) if (d.consecutive) add(d.target, 'dream');
-  // 摄梦人夜间出局，梦游者随之梦亡 (iterate: a dreamer can be someone else's dream target)
+  for (const e of inp.extra ?? []) add(e.seat, e.cause);
+  // chains: 摄梦人 dying takes the sleepwalker; a poisoned 狼美人 takes the charmed player
   for (let changed = true; changed; ) {
     changed = false;
     for (const d of inp.dreams) {
       if (deaths.has(d.by) && !(deaths.get(d.target) ?? []).includes('dream')) {
         add(d.target, 'dream');
+        changed = true;
+      }
+    }
+    for (const l of inp.lovers ?? []) {
+      if ((deaths.get(l.beauty) ?? []).includes('poison') && l.target !== l.beauty && !(deaths.get(l.target) ?? []).includes('lovesick')) {
+        add(l.target, 'lovesick');
         changed = true;
       }
     }
@@ -55,7 +75,7 @@ export function resolveNight(inp: NightInputs): Map<number, DeathCause[]> {
 
 /** causes that disable death skills (猎人/狼王开枪, 白狼王带人) */
 export function disablesSkill(causes: DeathCause[]): boolean {
-  return causes.includes('poison') || causes.includes('dream');
+  return causes.includes('poison') || causes.includes('dream') || causes.includes('lovesick');
 }
 
 export const CAUSE_TEXT: Record<DeathCause, string> = {
@@ -66,4 +86,8 @@ export const CAUSE_TEXT: Record<DeathCause, string> = {
   shot: '枪杀',
   whitewolf: '被白狼王带走',
   selfdestruct: '自爆',
+  duel: '决斗',
+  dance: '舞池',
+  lovesick: '殉情',
+  revenge: '自爆报复',
 };

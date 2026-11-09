@@ -110,6 +110,7 @@ export function SkillModal({ v, onClose }: { v: RoomView; onClose: () => void })
           {sd.available ? (
             <>
               <p class="muted">自爆后你立即出局且没有遗言，当天直接进入黑夜。</p>
+              {sd.revenge != null && <p>你的表白对象{sd.revenge}号会随你一起出局（没有遗言）。</p>}
               {sd.canTake && (
                 <>
                   <p>白狼王可以带走一名玩家（可以不带）：</p>
@@ -136,6 +137,32 @@ export function SkillModal({ v, onClose }: { v: RoomView; onClose: () => void })
           )}
         </div>
       )}
+      {you.skills.duel && (
+        <div class="skill-box">
+          <h4>决斗</h4>
+          {you.skills.duel.available ? (
+            <>
+              <p class="muted">翻牌与一名玩家决斗：对方是狼人则对方出局并直接进入黑夜；对方是好人则你出局。整局一次。</p>
+              <SeatPicker v={v} options={you.skills.duel.targets} selected={take} onChange={setTake} />
+              <Btn
+                kind="danger"
+                block
+                disabled={!take.length}
+                onClick={() => {
+                  if (confirm(`确定翻牌决斗${take[0]}号吗？`)) {
+                    act({ type: 'duel', target: take[0] });
+                    onClose();
+                  }
+                }}
+              >
+                {take.length ? `决斗${take[0]}号` : '请选择决斗对象'}
+              </Btn>
+            </>
+          ) : (
+            <p class="muted">{you.skills.duel.reason ?? '现在不能决斗'}</p>
+          )}
+        </div>
+      )}
       {you.skills.notes.length > 0 && (
         <div class="skill-box">
           <h4>状态</h4>
@@ -144,7 +171,7 @@ export function SkillModal({ v, onClose }: { v: RoomView; onClose: () => void })
           ))}
         </div>
       )}
-      {!sd && you.skills.notes.length === 0 && <p class="muted">你现在没有可以主动发动的技能。</p>}
+      {!sd && !you.skills.duel && you.skills.notes.length === 0 && <p class="muted">你现在没有可以主动发动的技能。</p>}
       <p class="hint">夜间行动、开枪和移交警徽会在对应的时间自动弹出。</p>
     </Modal>
   );
@@ -223,7 +250,7 @@ export function RulesModal({ v, onClose }: { v: RoomView; onClose: () => void })
             </ul>
           </div>
         ))}
-        {generalRules(v.config.rules).map((s) => (
+        {generalRules(v.config.rules, v.config.roles).map((s) => (
           <div key={s.title}>
             <h4>{s.title}</h4>
             <ul>

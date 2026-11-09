@@ -94,10 +94,18 @@ export class Bot {
 
   private decide(p: Prompt, seat: number, v: RoomView): GameAction | null {
     switch (p.kind) {
-      case 'pick':
+      case 'pick': {
         if (p.submitted) return null;
         if (p.allowNone && p.step !== 'seer' && p.step !== 'psychic') return { type: 'pick', step: p.step, targets: [] };
-        return { type: 'pick', step: p.step, targets: p.options.length ? [p.options[p.options.length - 1]] : [] };
+        const n = Math.max(1, p.min);
+        if (p.options.length < n) return null; // the deadline default handles it
+        return { type: 'pick', step: p.step, targets: p.options.slice(-n) };
+      }
+      case 'masque':
+        if (p.submitted) return null;
+        return { type: 'masqueAct', mask: null, kill: p.canKill ? (p.killOptions[0] ?? null) : null };
+      case 'prince':
+        return p.decided ? null : { type: 'prince', use: false };
       case 'wolves': {
         if (p.locked || p.myConfirmed) return null;
         const mates = p.teammates.map((t) => t.seat).concat(seat);
