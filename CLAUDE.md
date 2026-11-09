@@ -37,7 +37,8 @@ tests/engine/      # vitest: resolve, flow, special (机械狼/盗宝/secrecy), 
                    #         tables; night announcements must never contain a seat number)
 tests/server/      # vitest: real ws clients play a game, privacy, reconnect, persistence
 tests/e2e/         # Playwright phone profiles (game, boards, newboards specs); bots.ts = ws bot players
-scripts/           # gen_audio.py (edge-tts), smoke.ts (live smoke test), find-overflow.mjs
+scripts/           # gen_audio.py (edge-tts), smoke.ts (live smoke test), find-overflow.mjs,
+                   # screenshots.ts (README screenshots → docs/screenshots)
 deploy/            # deploy.sh, deploy.env.example, werewolf.caddy.template (deploy.env is git-ignored)
 Dockerfile, docker-compose.yml
 ```
@@ -52,6 +53,7 @@ npm run build        # client → dist/client
 npm run test:e2e     # playwright (builds, starts server with TIME_SCALE=0.3 TEST_HOOKS=1)
 node scripts/smoke.ts <board> <base-url>                       # smoke test: 12 bots play night 1 on an instance
 node scripts/find-overflow.mjs http://localhost:3000/ 375      # list elements wider than a phone
+npm run build && node scripts/screenshots.ts                   # regenerate the README screenshots
 deploy/deploy.sh     # deploy an instance (reads git-ignored deploy/deploy.env)
 ```
 Node ≥ 22.18 runs `server/*.ts` directly (type stripping) – keep server/shared code to erasable TS

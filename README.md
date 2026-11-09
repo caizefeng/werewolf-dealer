@@ -10,6 +10,29 @@ The UI is in Chinese and designed for phones (iPhone SE and up, Android, WeChat'
 It is self-hosted: run your own instance (one small Docker container, see
 [Deploy your own instance](#deploy-your-own-instance)) and share its link with your group.
 
+<table>
+  <tr>
+    <td align="center"><img src="docs/screenshots/home.jpg" width="180" alt="Pick a board or any role mix"><br><sub>Pick a board or any role mix</sub></td>
+    <td align="center"><img src="docs/screenshots/lobby.jpg" width="180" alt="Join by link, take a seat"><br><sub>Join by link, take a seat</sub></td>
+    <td align="center"><img src="docs/screenshots/role.jpg" width="180" alt="Your own role card"><br><sub>Your own role card</sub></td>
+    <td align="center"><img src="docs/screenshots/wolves.jpg" width="180" alt="Night: the pack agrees on a kill"><br><sub>Night: the pack agrees on a kill</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/screenshots/seer.jpg" width="180" alt="Night: 预言家 checks a player"><br><sub>Night: 预言家 checks a player</sub></td>
+    <td align="center"><img src="docs/screenshots/election.jpg" width="180" alt="Day: 警上发言 and 退水"><br><sub>Day: 警上发言 and 退水</sub></td>
+    <td align="center"><img src="docs/screenshots/vote.jpg" width="180" alt="Exile vote (警长 1.5 票)"><br><sub>Exile vote (警长 1.5 票)</sub></td>
+    <td align="center"><img src="docs/screenshots/history.jpg" width="180" alt="记录: who voted for whom"><br><sub>记录: who voted for whom</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/screenshots/result.jpg" width="180" alt="Every card revealed at the end"><br><sub>Every card revealed at the end</sub></td>
+    <td align="center"><img src="docs/screenshots/wolfgirl.jpg" width="180" alt="狼女孩 confesses (首夜禁刀)"><br><sub>狼女孩 confesses (首夜禁刀)</sub></td>
+    <td align="center"><img src="docs/screenshots/knight.jpg" width="180" alt="骑士 duels from the 技能 menu"><br><sub>骑士 duels from the 技能 menu</sub></td>
+    <td align="center"><img src="docs/screenshots/treasure.jpg" width="180" alt="盗宝大师 picks tonight’s card"><br><sub>盗宝大师 picks tonight’s card</sub></td>
+  </tr>
+</table>
+
+<sub>Screenshots from an iPhone 13-sized browser; `node scripts/screenshots.ts` regenerates them.</sub>
+
 ## How a game goes
 
 1. **Create a room** on the home page: pick a board (预女猎白, 预女猎守, 预女猎白混, 机械狼通灵师,
@@ -206,6 +229,12 @@ npm run build          # client → dist/client
 npm start              # production server; serves dist/client
 npx playwright install webkit chromium   # once
 npm run test:e2e       # full games in iPhone 13 / iPhone SE / Pixel 7 browsers
+```
+
+Regenerate the README screenshots (plays scripted games against a local server, writes `docs/screenshots/`):
+
+```bash
+npm run build && node scripts/screenshots.ts
 ```
 
 Regenerate voice clips after editing `shared/audio.ts`:

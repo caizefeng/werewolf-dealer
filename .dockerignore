@@ -4,6 +4,7 @@ data
 test-results
 playwright-report
 tests
+docs
 scripts/.venv
 .git
 .DS_Store

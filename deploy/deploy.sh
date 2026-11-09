@@ -28,7 +28,7 @@ echo "→ syncing sources to $DEPLOY_DIR"
 ssh "$DEPLOY_HOST" "mkdir -p '$DEPLOY_DIR'"
 rsync -az --delete \
   --exclude node_modules --exclude dist --exclude data --exclude test-results \
-  --exclude playwright-report --exclude scripts/.venv --exclude .git --exclude .DS_Store \
+  --exclude playwright-report --exclude scripts/.venv --exclude .git --exclude .DS_Store --exclude docs \
   --exclude deploy/deploy.env --exclude CLAUDE.local.md \
   ./ "$DEPLOY_HOST:$DEPLOY_DIR/"
 
