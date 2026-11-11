@@ -23,6 +23,8 @@ export interface ServerOptions {
   timeScale?: number;
   /** enables the debugDeal owner command (tests/e2e only) */
   testHooks?: boolean;
+  /** new rooms per hour per IP (default 30; the e2e suite creates more than that from one IP) */
+  createLimit?: number;
 }
 
 function loadDurations(): (id: string) => number {
@@ -110,7 +112,7 @@ export function startServer(opts: ServerOptions) {
     if (!opts.quiet) console.log(new Date().toISOString(), ...a);
   };
   if (loaded) log(`restored ${loaded} room(s)`);
-  const createLimiter = new RateLimiter(30, 3600_000);
+  const createLimiter = new RateLimiter(opts.createLimit ?? 30, 3600_000);
 
   const clientIp = (req: http.IncomingMessage): string => {
     const remote = req.socket.remoteAddress ?? '';
@@ -438,6 +440,7 @@ if (isMain) {
     trustProxy: process.env.TRUST_PROXY === '1',
     timeScale: Number(process.env.TIME_SCALE) > 0 ? Number(process.env.TIME_SCALE) : 1,
     testHooks: process.env.TEST_HOOKS === '1',
+    createLimit: Number(process.env.CREATE_LIMIT) > 0 ? Number(process.env.CREATE_LIMIT) : undefined,
   }).then(({ close }) => {
     const shutdown = (sig: string) => {
       console.log(`${sig}: saving rooms and shutting down`);

@@ -306,7 +306,8 @@ scripts/.venv/bin/python scripts/gen_audio.py --force    # all clips
 ```
 
 Server environment: `PORT` (3000), `HOST`, `DATA_DIR` (room snapshots, default `./data`),
-`STATIC_DIR` (default `dist/client`), `TRUST_PROXY=1` behind a reverse proxy, and test-only `TIME_SCALE`
+`STATIC_DIR` (default `dist/client`), `TRUST_PROXY=1` behind a reverse proxy, `CREATE_LIMIT` (new rooms per
+hour per IP, default 30), and test-only `TIME_SCALE`
 (speeds up every timer) and `TEST_HOOKS=1` (fixed-role deals).
 
 ## Tests

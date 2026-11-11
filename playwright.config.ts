@@ -22,7 +22,7 @@ export default defineConfig({
     { name: 'pixel-7', use: { ...devices['Pixel 7'] } },
   ],
   webServer: {
-    command: `rm -rf test-results/e2e-data && npx vite build --logLevel warn && PORT=${PORT} HOST=127.0.0.1 TIME_SCALE=0.3 TEST_HOOKS=1 DATA_DIR=test-results/e2e-data node server/index.ts`,
+    command: `rm -rf test-results/e2e-data && npx vite build --logLevel warn && PORT=${PORT} HOST=127.0.0.1 TIME_SCALE=0.3 TEST_HOOKS=1 CREATE_LIMIT=1000 DATA_DIR=test-results/e2e-data node server/index.ts`,
     url: `http://127.0.0.1:${PORT}/api/health`,
     reuseExistingServer: false,
     timeout: 120_000,
