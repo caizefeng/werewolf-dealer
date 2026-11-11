@@ -114,7 +114,7 @@ function RoomScreen({ v, connState }: { v: RoomView; connState: string }) {
       {connState !== 'open' && <div class="conn-banner">连接中断，正在重连…</div>}
       {owner && g && g.time !== 'ended' && audio.settings.enabled && !audio.unlocked && (
         <button type="button" class="audio-banner" onClick={() => audio.unlock()}>
-          🔈 点击此处启用本机声音（夜间指令与背景音乐）
+          {audio.interrupted ? '🔈 声音被系统打断了，点此恢复' : '🔈 点击此处启用本机声音（夜间指令与背景音乐）'}
         </button>
       )}
       <Banner v={v} />

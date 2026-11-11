@@ -344,6 +344,29 @@ function useAudioSettings() {
   return audio.settings;
 }
 
+/** what the sound on this phone is doing; refreshed every second while open */
+function SoundDiagnostics() {
+  const [open, setOpen] = useState(false);
+  const [, tick] = useReducer((x: number) => x + 1, 0);
+  useEffect(() => {
+    if (!open) return;
+    const t = setInterval(tick, 1000);
+    return () => clearInterval(t);
+  }, [open]);
+  return (
+    <details class="diag" onToggle={(e) => setOpen((e.currentTarget as HTMLDetailsElement).open)}>
+      <summary>声音诊断</summary>
+      {open && (
+        <ul>
+          {audio.diagnostics().map((l) => (
+            <li key={l}>{l}</li>
+          ))}
+        </ul>
+      )}
+    </details>
+  );
+}
+
 export function OwnerMenu({
   v,
   onClose,
@@ -428,10 +451,19 @@ export function OwnerMenu({
               <span>音乐音量</span>
               <input type="range" min={0} max={1} step={0.05} value={s.musicVol} onInput={(e) => audio.update({ musicVol: Number((e.target as HTMLInputElement).value) })} />
             </label>
-            <Btn small onClick={() => audio.test()}>
+            <Btn
+              small
+              onClick={() => {
+                if (!s.enabled) return toast('本机声音已关闭：请先打开「本机播放声音」', 'info');
+                if (!s.voice) return toast('法官语音已关闭：请先打开「法官语音」', 'info');
+                if (s.voiceVol <= 0.02) toast('语音音量为 0：请调大「语音音量」', 'info');
+                audio.test();
+              }}
+            >
               测试声音
             </Btn>
-            <p class="hint">声音只在房主设备上播放。iPhone 请关闭静音模式或调大媒体音量；游戏中请保持本页在前台。</p>
+            <p class="hint">声音只在房主设备上播放，iPhone 静音模式下也会播放。仍然没有声音时，请调大手机的媒体音量、检查是否连着蓝牙耳机，并保持本页在前台。</p>
+            <SoundDiagnostics />
           </div>
         )}
         {owner && (

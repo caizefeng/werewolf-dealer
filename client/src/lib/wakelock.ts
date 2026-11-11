@@ -1,14 +1,22 @@
 // Keep the screen on during a game: Screen Wake Lock API, falling back to a
 // muted looping inline video (older iOS / WeChat WebViews).
-let sentinel: { release(): Promise<void> } | null = null;
+type Sentinel = { release(): Promise<void>; addEventListener?(type: 'release', f: () => void): void };
+let sentinel: Sentinel | null = null;
 let video: HTMLVideoElement | null = null;
 let wanted = false;
 
 async function acquire(): Promise<void> {
-  const nav = navigator as Navigator & { wakeLock?: { request(t: 'screen'): Promise<{ release(): Promise<void> }> } };
+  const nav = navigator as Navigator & { wakeLock?: { request(t: 'screen'): Promise<Sentinel> } };
   if (nav.wakeLock) {
     try {
-      sentinel = await nav.wakeLock.request('screen');
+      const s = await nav.wakeLock.request('screen');
+      sentinel = s;
+      // the system may drop the lock mid-game (the screen would then sleep and the sound stop): take it again
+      s.addEventListener?.('release', () => {
+        if (sentinel !== s) return;
+        sentinel = null;
+        if (wanted && document.visibilityState === 'visible') void acquire();
+      });
       return;
     } catch {
       /* fall through */

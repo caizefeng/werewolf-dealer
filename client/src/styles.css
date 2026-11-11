@@ -1635,6 +1635,21 @@ h4 {
 .menu-item.danger {
   color: #ff8a8a;
 }
+.diag {
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--text-2);
+}
+.diag summary {
+  cursor: pointer;
+  color: var(--text-3);
+}
+.diag ul {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  line-height: 1.6;
+  word-break: break-all;
+}
 .menu-item.small {
   font-size: 14px;
   min-height: 40px;

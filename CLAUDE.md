@@ -39,7 +39,7 @@ tests/engine/      # vitest: resolve, flow, special (机械狼/盗宝/secrecy), 
 tests/engine/tables.ts  # random custom tables shared by the fuzz and bot tests
 tests/server/      # vitest: real ws clients play a game, privacy, reconnect, persistence; bots (decisions,
                    #         seating/takeovers, all-bot games on a fake clock)
-tests/e2e/         # Playwright phone profiles (game, boards, newboards, solo, music specs); bots.ts = scripted ws test
+tests/e2e/         # Playwright phone profiles (game, boards, newboards, solo, music, sound specs); bots.ts = scripted ws test
                    #         players (not the built-in bots)
 scripts/           # gen_audio.py (edge-tts), prep_music.ts (night track → client/public/music/night.mp3),
                    # smoke.ts (live smoke test), loadtest.ts (simulated rooms of phones), find-overflow.mjs,
@@ -110,7 +110,13 @@ Only owner devices play audio; music is ducked to ~3% while the judge speaks.
 Night music (`client/src/audio/music.ts`, both implement `NightSound`): `NightTrack` plays the optional recorded
 track `client/public/music/night.mp3` (git-ignored, deployed by rsync; prepare it with `node scripts/prep_music.ts
 <file>` → -20 LUFS, the synth's level) and loops it with an 8 s equal-power crossfade; `NightMusic` synthesizes the
-ambience when there is no track. `AudioEngine.loadTrack()` starts at the first tap (`unlock()`); if the night begins
+ambience when there is no track. iOS: `openMediaChannel()` keeps a looping silent `<audio>` (`/silence.mp3`, 48 kHz
+stereo) playing so the ring/silent switch does not mute Web Audio; closed when the page is hidden, reopened on the next
+tap. Interrupted sound (`stale`: the context left 'running' after having run, its clock froze while something played
+— `checkClock()` every second — or the iPhone page was in the background) is fixed by `unlock()` on the next tap:
+`dropContext()` closes the old context and a fresh one is built (decoded buffers are reused; night music restarts;
+the latest line is replayed if < 12 s old, once the new context runs). `unlocked` is false while stale, so the owner's
+banner offers that tap. `diagnostics()` feeds ⋮ → 声音诊断. `AudioEngine.loadTrack()` starts at the first tap (`unlock()`); if the night begins
 before the track is decoded, it waits 1.5 s, then plays the synth and crossfades to the track once it is ready.
 `<html data-night-music>` says which one plays (e2e).
 

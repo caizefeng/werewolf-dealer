@@ -245,7 +245,21 @@ flow in `server/game/engine.ts`.
   copies it to your server. The owner's phone starts downloading it (3–4 MB) at the first tap in the room;
   if a night begins before it is ready, the synthesized soundtrack plays and crossfades to the track when it arrives.
 - Only owner devices play sound (toggle 🔊 in the top bar). Phones require a tap before audio can
-  start; a banner asks for it. iOS 16.4+ plays even with the silent switch on.
+  start; a banner asks for it.
+- iPhones in silent mode: iOS mutes Web Audio with the ring/silent switch. The owner's phone asks for the
+  "playback" audio session and also keeps a looping, silent `<audio>` element playing (the technique of the
+  `unmute` library), which puts the page on the media channel the switch does not mute. The element stops when
+  the page goes to the background (so no media controls are left on the lock screen) and restarts on the next tap.
+- Sound cut off mid-game (a call, Siri, a notification sound, the screen locking, switching apps): iOS can hand the
+  page back an audio engine that stays silent even though it claims to run, which used to need a reload. The
+  owner's phone notices when the system pauses or interrupts it, when its clock stops while something should be
+  playing, and (on iPhones) when the page was in the background. The banner then reads 声音被系统打断了，点此恢复,
+  and the next tap builds a fresh engine, the way a reload would. The game stays on screen, the loaded clips are
+  kept, the night music starts again and the latest judge line is repeated if it is still fresh. The screen wake
+  lock is requested again whenever the system drops it.
+- ⋮ → 本机声音 → **测试声音** says when a setting keeps the phone quiet (本机播放声音, 法官语音, 语音音量), and
+  **声音诊断** lists what the sound on this phone is doing: browser, audio engine state and sample rate, audio
+  session, clips loaded and played, night music, and the last problem it ran into.
 - All phones keep the screen awake during a game (Wake Lock API, with a muted-video fallback).
 
 ## Development
@@ -326,6 +340,10 @@ Server environment: `PORT` (3000), `HOST`, `DATA_DIR` (room snapshots, default `
   狼女孩 (首夜禁刀, confession, 自爆报复) through the UI, each game played to the end.
 - `tests/e2e/solo.spec.ts`: the owner fills the table with bots from the lobby (and adds or removes single
   bots in the owner menu), then plays a whole game as 预言家 among them.
+- `tests/e2e/sound.spec.ts`: on iPhones the silent media channel opens on a tap, closes in the background and
+  reopens on the next tap (other phones never load it); 测试声音 explains a switched-off setting; 声音诊断; sound
+  cut off mid-game (a suspended engine, an iPhone page back from the background) comes back with one tap on a
+  freshly built engine.
 - `tests/e2e/music.spec.ts`: at night the owner's phone plays the recorded track if the instance has one,
   the synthesized soundtrack if not (or until a slow download arrives, then crossfades), and the music switch
   in the menu stops and restarts it.

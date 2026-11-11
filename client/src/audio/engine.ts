@@ -7,6 +7,15 @@ import { NightMusic, NightTrack, type NightSound } from './music.ts';
 /** optional recorded night music (git-ignored; scripts/prep_music.ts); the synth plays without it */
 const NIGHT_TRACK_URL = '/music/night.mp3';
 
+/** iPhones and iPads (iPadOS reports a Mac user agent, but with touch points) */
+const IS_IOS = (() => {
+  if (typeof navigator === 'undefined') return false;
+  const ua = navigator.userAgent.toLowerCase();
+  return (/iphone|ipod|ipad/.test(ua) && !ua.includes('like iphone')) || (ua.includes('mac os x') && navigator.maxTouchPoints > 0);
+})();
+/** one second of high-quality silence (48 kHz stereo, 256 kbps): iOS mixes Web Audio to match this element's format */
+const SILENCE_URL = '/silence.mp3';
+
 export interface AudioSettings {
   enabled: boolean;
   voice: boolean;
@@ -38,6 +47,25 @@ class AudioEngine {
   /** bumped whenever the music starts or stops, so a late track download cannot start a stale night */
   private musicToken = 0;
   private nightOn = false;
+  /** iOS: a looping silent <audio> element that keeps the page on the media channel (see openMediaChannel) */
+  private channel: HTMLAudioElement | null = null;
+  /** the last thing that went wrong, for the 声音诊断 lines in the owner menu */
+  private lastProblem: string | null = null;
+  private played = 0;
+  /**
+   * The system interrupted, suspended or froze the audio engine (a call, Siri, another app's or a notification's
+   * sound, the screen locking, switching apps, headphones…). iOS can hand such a page back an engine that stays
+   * silent although it claims to run, which only a reload used to fix. Now the next tap builds a fresh engine
+   * (dropContext + unlock), and the owner's banner asks for that tap.
+   */
+  private stale = false;
+  private wasRunning = false;
+  private rebuilds = 0;
+  private clock: { ctx: number; wall: number } | null = null;
+  private watchdog: ReturnType<typeof setInterval> | null = null;
+  /** the latest judge line, replayed after a rebuild if it is still fresh */
+  private latest: { a: Announcement; at: number } | null = null;
+  private replayDue = false;
   private lastId = -1;
   private subs = new Set<() => void>();
   settings: AudioSettings;
@@ -50,6 +78,146 @@ class AudioEngine {
       /* defaults */
     }
     this.settings = s;
+    if (IS_IOS && typeof document !== 'undefined') {
+      // in the background the silent element would only show media controls on the lock screen
+      const hidden = () => {
+        if (document.visibilityState === 'visible') return;
+        this.closeMediaChannel();
+        // the engine iOS hands back after the background is often silent: rebuild it on the next tap
+        if (this.ctx && this.wasRunning) this.markStale('页面进入后台');
+      };
+      document.addEventListener('visibilitychange', hidden);
+      window.addEventListener('pagehide', () => this.closeMediaChannel());
+    }
+    if (typeof window !== 'undefined') {
+      // restored from the back-forward cache: the old engine is not to be trusted
+      window.addEventListener('pageshow', (e) => {
+        if ((e as PageTransitionEvent).persisted && this.ctx) this.markStale('页面从缓存恢复');
+      });
+    }
+  }
+
+  private markStale(why: string): void {
+    if (this.stale) return;
+    this.stale = true;
+    this.note(`声音被打断（${why}），点一下页面即可恢复`);
+  }
+
+  /** true when sound was working and then got cut off by the system (the banner offers to restore it) */
+  get interrupted(): boolean {
+    return this.stale || (this.wasRunning && !!this.ctx && this.ctx.state !== 'running');
+  }
+
+  /** a context can claim to run while its clock stands still (no sound): check while something should be heard */
+  private checkClock(): void {
+    const ctx = this.ctx;
+    const audible = this.playing || !!this.music;
+    if (!ctx || ctx.state !== 'running' || this.stale || !audible || document.visibilityState !== 'visible') {
+      this.clock = null;
+      return;
+    }
+    const wall = performance.now();
+    const before = this.clock;
+    this.clock = { ctx: ctx.currentTime, wall };
+    if (before && wall - before.wall >= 900 && ctx.currentTime - before.ctx < 0.05) this.markStale('声音时钟停止');
+  }
+
+  /** throws away an interrupted engine; unlock() builds a fresh one (decoded clips and the night track are kept) */
+  private dropContext(): void {
+    const old = this.ctx;
+    this.stopMusic();
+    this.ctx = null;
+    this.master = this.voiceBus = this.musicBus = this.duck = null;
+    this.stale = false;
+    this.wasRunning = false;
+    this.clock = null;
+    if (old) {
+      old.onstatechange = null;
+      void old.close().catch(() => {});
+    }
+    this.rebuilds++;
+    this.note(`已重建声音引擎（第 ${this.rebuilds} 次）`);
+  }
+
+  /**
+   * iOS treats Web Audio as "ambient" sound, which the ring/silent switch mutes. While an <audio> element
+   * plays, the page is on the media channel instead, which the switch does not mute, so the owner's phone
+   * keeps a looping silent element playing (the technique of the "unmute" library). navigator.audioSession
+   * 'playback' is meant to do the same on iOS 17+, but it does not work everywhere (WebKit bug reports,
+   * in-app browsers). play() needs a tap; a refused attempt is retried on the next one.
+   */
+  private openMediaChannel(): void {
+    if (!IS_IOS || !this.settings.enabled || document.visibilityState !== 'visible') return;
+    if (!this.channel) {
+      const tag = document.createElement('audio');
+      tag.setAttribute('x-webkit-airplay', 'deny');
+      tag.controls = false;
+      tag.disableRemotePlayback = true;
+      tag.preload = 'auto';
+      tag.loop = true;
+      tag.src = SILENCE_URL;
+      // whether the channel is open (read by the e2e tests)
+      tag.addEventListener('playing', () => {
+        if (this.channel === tag) document.documentElement.dataset.mediaChannel = 'on';
+      });
+      tag.load();
+      this.channel = tag;
+    }
+    if (this.channel.paused)
+      void this.channel.play().catch((e: unknown) => {
+        this.note(`静音通道未能播放（${(e as Error)?.name ?? e}），下次点击会重试`);
+      });
+  }
+
+  private closeMediaChannel(): void {
+    const tag = this.channel;
+    if (!tag) return;
+    this.channel = null;
+    delete document.documentElement.dataset.mediaChannel;
+    tag.pause();
+    // unloading the source is what clears the lock-screen media controls
+    tag.removeAttribute('src');
+    tag.load();
+  }
+
+  private note(problem: string): void {
+    this.lastProblem = `${new Date().toLocaleTimeString()} ${problem}`;
+    this.emit();
+  }
+
+  /** a few lines that tell what the sound on this phone is doing (owner menu → 声音诊断) */
+  diagnostics(): string[] {
+    const nav = navigator as Navigator & { audioSession?: { type: string }; standalone?: boolean };
+    const ua = navigator.userAgent;
+    const ios = /OS (\d+)[._](\d+)/.exec(ua);
+    const browser = /MicroMessenger/i.test(ua)
+      ? '微信内置浏览器'
+      : /\bQQ\//.test(ua)
+        ? 'QQ 内置浏览器'
+        : /CriOS/.test(ua)
+          ? 'Chrome'
+          : /FxiOS/.test(ua)
+            ? 'Firefox'
+            : /EdgiOS|Edg\//.test(ua)
+              ? 'Edge'
+              : /Android/.test(ua)
+                ? 'Android 浏览器'
+                : /Safari/.test(ua)
+                  ? 'Safari'
+                  : '其他浏览器';
+    const home = matchMedia('(display-mode: standalone)').matches || nav.standalone === true;
+    const ctx = this.ctx;
+    const s = this.settings;
+    const settings = !s.enabled ? '本机声音已关闭' : `语音${s.voice ? Math.round(s.voiceVol * 100) + '%' : '关'} · 音乐${s.music ? Math.round(s.musicVol * 100) + '%' : '关'}`;
+    return [
+      `设备：${IS_IOS ? `iOS ${ios ? `${ios[1]}.${ios[2]}` : '?'}` : /Android/.test(ua) ? 'Android' : '电脑'} · ${browser}${home ? ' · 主屏幕应用' : ''}`,
+      `设置：${settings}`,
+      `声音引擎：${ctx ? `${ctx.state === 'running' ? '运行中' : ctx.state} · ${ctx.sampleRate} Hz${this.stale ? ' · 被打断，点一下页面恢复' : ''}` : '未启动（点一下页面）'}${this.rebuilds ? ` · 已重建 ${this.rebuilds} 次` : ''}`,
+      `声音会话：${nav.audioSession ? nav.audioSession.type : '浏览器不支持'}${IS_IOS ? ` · 静音通道：${this.channel && !this.channel.paused ? '开' : '关'}` : ''}`,
+      `语音：已加载 ${this.buffers.size} 段 · 已播放 ${this.played} 句`,
+      `夜间音乐：${this.track ? `录制曲目 ${Math.round(this.track.duration)} 秒` : this.track === null ? '合成音乐' : this.trackLoad ? '下载中' : '未加载'}`,
+      `最近问题：${this.lastProblem ?? '无'}`,
+    ];
   }
 
   subscribe(f: () => void): () => void {
@@ -62,7 +230,7 @@ class AudioEngine {
   }
 
   get unlocked(): boolean {
-    return !!this.ctx && this.ctx.state === 'running';
+    return !!this.ctx && this.ctx.state === 'running' && !this.stale;
   }
 
   update(p: Partial<AudioSettings>): void {
@@ -71,7 +239,10 @@ class AudioEngine {
     this.applyVolumes();
     if (!this.settings.enabled || !this.settings.music) this.stopMusic();
     else if (this.nightOn) this.startMusic();
-    if (!this.settings.enabled) this.queue = [];
+    if (!this.settings.enabled) {
+      this.queue = [];
+      this.closeMediaChannel();
+    }
     this.emit();
   }
 
@@ -92,6 +263,8 @@ class AudioEngine {
     } catch {
       /* not supported */
     }
+    const rebuilt = !!this.ctx && (this.stale || this.ctx.state === 'closed');
+    if (rebuilt) this.dropContext();
     if (!this.ctx) {
       const Ctor: AudioCtor | undefined =
         window.AudioContext ?? (window as unknown as { webkitAudioContext?: AudioCtor }).webkitAudioContext;
@@ -109,9 +282,27 @@ class AudioEngine {
       this.duck = ctx.createGain();
       this.musicBus.connect(this.duck).connect(this.master);
       this.applyVolumes();
-      ctx.onstatechange = () => this.emit();
+      ctx.onstatechange = () => {
+        if (ctx !== this.ctx) return;
+        const st = ctx.state as string;
+        if (st === 'running') {
+          this.wasRunning = true;
+          // iOS starts a new engine suspended and runs it a moment after the tap: start the night music then
+          if (this.nightOn && this.settings.enabled && this.settings.music) this.startMusic();
+          this.replayLatest();
+        }
+        // iOS: 'interrupted' (a call, Siri, another sound) or 'suspended' (screen lock, background)
+        else if (this.wasRunning && st !== 'closed') this.markStale(`系统把声音引擎切到了 ${st}`);
+        this.emit();
+      };
+      if (!this.watchdog) this.watchdog = setInterval(() => this.checkClock(), 1000);
     }
-    if (this.ctx.state !== 'running') void this.ctx.resume().then(() => this.emit());
+    if (this.ctx.state !== 'running')
+      void this.ctx
+        .resume()
+        .then(() => this.emit())
+        .catch(() => {});
+    this.openMediaChannel();
     // start fetching the night track at the very first tap: it is the one big download
     void this.loadTrack();
     // a silent buffer fully unlocks older iOS
@@ -121,7 +312,20 @@ class AudioEngine {
     src.connect(this.ctx.destination);
     src.start(0);
     if (this.nightOn && this.settings.music) this.startMusic();
+    // after a rebuild, say the current instruction again (it was likely lost) once the new engine runs
+    if (rebuilt) this.replayDue = true;
+    if (this.ctx.state === 'running') {
+      this.wasRunning = true;
+      this.replayLatest();
+    }
     this.emit();
+  }
+
+  private replayLatest(): void {
+    if (!this.replayDue) return;
+    this.replayDue = false;
+    const l = this.latest;
+    if (l && Date.now() - l.at < 12_000 && !this.queue.includes(l.a)) this.enqueue(l.a);
   }
 
   private load(id: string): Promise<AudioBuffer | null> {
@@ -144,7 +348,10 @@ class AudioEngine {
         this.buffers.set(id, buf);
         return buf;
       })
-      .catch(() => null)
+      .catch((e: unknown) => {
+        this.note(`语音片段 ${id} 加载失败（${(e as Error)?.message || (e as Error)?.name || e}）`);
+        return null;
+      })
       .finally(() => this.loading.delete(id));
     this.loading.set(id, p);
     return p;
@@ -202,6 +409,7 @@ class AudioEngine {
 
   private enqueue(a: Announcement): void {
     if (!this.settings.enabled || !this.settings.voice) return;
+    if (a.id >= 0) this.latest = { a, at: Date.now() };
     this.queue.push(a);
     if (!this.playing) void this.drain();
   }
@@ -221,12 +429,19 @@ class AudioEngine {
 
   private async play(a: Announcement): Promise<void> {
     const ctx = this.ctx;
-    if (!ctx || ctx.state !== 'running') return this.speak(a.text);
+    if (!ctx || ctx.state !== 'running') {
+      this.note(`声音引擎${ctx ? `处于 ${ctx.state} 状态` : '未启动'}，改用系统朗读`);
+      return this.speak(a.text);
+    }
     const bufs = await Promise.race([
       Promise.all(a.clips.map((c) => this.load(c))),
       new Promise<null>((r) => setTimeout(() => r(null), 4000)),
     ]);
-    if (!bufs || bufs.some((b) => !b)) return this.speak(a.text);
+    if (!bufs || bufs.some((b) => !b)) {
+      this.note(bufs ? '语音片段加载失败，改用系统朗读' : '语音片段 4 秒内没有加载完，改用系统朗读');
+      return this.speak(a.text);
+    }
+    this.played++;
     this.duckNow();
     let t = ctx.currentTime + 0.12;
     for (const b of bufs as AudioBuffer[]) {
