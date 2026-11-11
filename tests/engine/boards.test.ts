@@ -123,7 +123,7 @@ describe('机械狼通灵师 (12)', () => {
     expect(stepsForNight(cfg, 2)).toEqual(['guard', 'wolves', 'mechKill', 'witch', 'psychic', 'mechSkill', 'hunterStatus']);
   });
 
-  it('plays to a good win: 机械守卫 blocks the poison, the pack dies, the 机械狼 takes the knife and the hunter shoots it', () => {
+  it('plays to a good win: 机械守卫 bounces the poison, the pack dies, the 机械狼 takes the knife and the hunter shoots it', () => {
     const d = new Driver(SEATS);
     d.start();
     // night 1: the 机械狼 learns the guard, the guard protects the wolves' target, the psychic sees the learned identity
@@ -140,7 +140,7 @@ describe('机械狼通灵师 (12)', () => {
     expect(d.announcements()).toContain('昨天晚上是平安夜。');
     discussAndExile(d, 5);
     toNight(d);
-    // night 2: the witch is knifed (cannot self-save), poisons 6 — the 机械守卫 shields 6
+    // night 2: the witch is knifed (cannot self-save), poisons 6 — the 机械守卫 guards 6 and bounces the poison to her
     d.pick(4, 'guard', [10]);
     d.wolves(2);
     d.toStep('mechKill');
@@ -153,8 +153,9 @@ describe('机械狼通灵师 (12)', () => {
     d.pick(8, 'mechSkill', [6]);
     d.toDay();
     d.toPhase('deathSkills');
-    expect(d.alive()).toContain(6); // poison blocked
+    expect(d.alive()).toContain(6); // the poison never reached 6
     expect(d.alive()).not.toContain(2);
+    expect(d.g.p(2).death!.causes).toEqual(['knife', 'poison']); // knifed, and her own poison bounced back
     d.skipSkills();
     discussAndExile(d, 6);
     toNight(d);

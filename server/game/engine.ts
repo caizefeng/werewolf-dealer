@@ -1374,6 +1374,9 @@ export class Game {
     const inp = this.nightInputs();
     const deaths = resolveNight(inp);
     // update persistent per-role state (dream targets are tracked by the player actually hit)
+    const mechwolf = this.s.players.find((p) => p.role === 'mechwolf');
+    const bouncing = new Set(inp.guards.filter((g) => g.bouncesPoison).map((g) => g.target));
+    if (mechwolf?.mech && inp.poisons.some((p) => bouncing.has(p.target) && p.by != null && p.by !== p.target)) mechwolf.mech.bounced = true;
     const dreamer = this.s.players.find((p) => p.role === 'dreamer');
     if (dreamer && dreamer.alive) dreamer.dreamLast = this.mapT(rec.dream ?? null);
     const beauty = this.s.players.find((p) => p.role === 'wolfbeauty');
@@ -1434,12 +1437,14 @@ export class Game {
       if (rec.mechKill[1] != null) knives.push({ target: m(rec.mechKill[1]), piercing: true });
     }
     const guards: NightInputs['guards'] = [];
-    if (rec.guard != null) guards.push({ target: m(rec.guard), blocksPoison: false });
+    if (rec.guard != null) guards.push({ target: m(rec.guard), bouncesPoison: false });
     const mechSk = this.mechSkill();
-    if (rec.mechSkill != null && mechSk === 'guard') guards.push({ target: m(rec.mechSkill), blocksPoison: true });
+    // 机械守卫: 弹毒 once per game, then an ordinary guard (stops the knife only)
+    const mechwolf = this.s.players.find((p) => p.role === 'mechwolf');
+    if (rec.mechSkill != null && mechSk === 'guard') guards.push({ target: m(rec.mechSkill), bouncesPoison: !mechwolf?.mech?.bounced });
     const tp = this.s.players.find((p) => p.role === 'treasure');
     const tSkill = rec.treasure && tp?.treasure ? treasureSkillOf(tp.treasure.cards[rec.treasure.card]) : 'none';
-    if (rec.treasure?.target != null && tSkill === 'guard') guards.push({ target: m(rec.treasure.target), blocksPoison: false });
+    if (rec.treasure?.target != null && tSkill === 'guard') guards.push({ target: m(rec.treasure.target), bouncesPoison: false });
     const dreams: NightInputs['dreams'] = [];
     const dreamer = this.s.players.find((p) => p.role === 'dreamer');
     if (rec.dream != null && dreamer) {
@@ -1457,11 +1462,12 @@ export class Game {
     const witch = this.s.players.find((p) => p.role === 'witch');
     let save = rec.witch?.save != null ? m(rec.witch.save) : null;
     if (save != null && witch && save === witch.seat && !this.witchCanSelfSave()) save = null;
+    // `by` is the player who used the poison (where a 机械守卫 bounces it), never a swapped number
     const poisons: NightInputs['poisons'] = [];
-    if (rec.witch?.poison != null) poisons.push({ target: m(rec.witch.poison), witch: true });
-    if (rec.poison != null) poisons.push({ target: m(rec.poison), witch: false });
-    if (rec.mechSkill != null && mechSk === 'poison') poisons.push({ target: m(rec.mechSkill), witch: false });
-    if (rec.treasure?.target != null && tSkill === 'poison') poisons.push({ target: m(rec.treasure.target), witch: false });
+    if (rec.witch?.poison != null) poisons.push({ target: m(rec.witch.poison), witch: true, by: witch?.seat ?? null });
+    if (rec.poison != null) poisons.push({ target: m(rec.poison), witch: false, by: this.seatOf('poisoner') });
+    if (rec.mechSkill != null && mechSk === 'poison') poisons.push({ target: m(rec.mechSkill), witch: false, by: this.seatOf('mechwolf') });
+    if (rec.treasure?.target != null && tSkill === 'poison') poisons.push({ target: m(rec.treasure.target), witch: false, by: tp?.seat ?? null });
     // 舞池: the dancer on the floor makes the floor knife-immune; mixed floors lose their minority
     const floor = (rec.dance ?? []).map(m);
     const dancerSeat = this.seatOf('dancer');
@@ -1557,6 +1563,9 @@ export class Game {
     if (rec.psychic != null) L.push(`${who('psychic')}查验${rec.psychic}号：${this.lastCheck('psychic', rec.night)}`);
     if (rec.curse != null) L.push(`${who('crow')}诅咒${rec.curse}号`);
     if (rec.mechSkill != null) L.push(`${who('mechwolf')}发动机械技能，目标${rec.mechSkill}号`);
+    const bouncing = new Set(inp.guards.filter((g) => g.bouncesPoison).map((g) => g.target));
+    for (const p of inp.poisons)
+      if (bouncing.has(p.target) && p.by != null && p.by !== p.target) L.push(`机械守卫守住${p.target}号，毒药反弹给${p.by}号`);
     const deaths = rec.deaths ?? [];
     for (const w of this.s.wounded.filter((x) => x.night === rec.night))
       L.push(`${w.seat}号蒙面负伤（${w.causes.map((c) => CAUSE_TEXT[c]).join('、')}），次日发言后出局`);
@@ -1565,7 +1574,6 @@ export class Game {
         ? `结算：${deaths.map((d) => `${d.seat}号（${d.causes.map((c) => CAUSE_TEXT[c]).join('、')}）`).join('，')}出局`
         : '结算：平安夜',
     );
-    void inp;
     return L;
   }
 
@@ -2978,6 +2986,7 @@ export class Game {
         const title =
           sk === 'guard' ? '请选择你要守护的玩家' : sk === 'poison' ? '你要使用毒药吗？' : '请选择你要查验的玩家';
         const lines = [`你学习的身份：${ROLES[pl.mech!.learned!].name}`, `机械技能：${MECH_SKILL_TEXT[sk]}`];
+        if (sk === 'guard') lines.push(pl.mech?.bounced ? '弹毒已经用过：今晚的守护只能挡刀。' : '弹毒还可以用一次。');
         if (sk === 'guard' && pl.mech?.guardLast) lines.push(`昨晚守护：${pl.mech.guardLast}号（今晚不能再守）`);
         return P(title, lines, sk === 'guard' ? '空守' : sk === 'poison' ? '不使用' : '不查验', sk === 'guard' ? '守护' : sk === 'poison' ? '毒杀' : '查验');
       }
@@ -3042,6 +3051,7 @@ export class Game {
           : '尚未学习',
       );
       if (mechSkillFor(pl.mech.learned ?? 'villager') === 'poison') notes.push(`机械毒药：${pl.mech.poison ? '可用' : '已用'}`);
+      if (mechSkillFor(pl.mech.learned ?? 'villager') === 'guard') notes.push(`弹毒：${pl.mech.bounced ? '已用（之后只能挡刀）' : '可用一次'}`);
       notes.push(`带刀状态：${this.knifeHolder() === seat ? '可以带刀' : '不能带刀'}`);
     }
     if (pl.treasure) {

@@ -5,14 +5,14 @@ import type { DeathCause } from './state.ts';
 export interface NightInputs {
   /** wolf knives; a piercing knife (机械狼破盾刀) ignores guards */
   knives: { target: number; piercing: boolean }[];
-  /** guards; the 机械守卫 also blocks poison */
-  guards: { target: number; blocksPoison: boolean }[];
+  /** guards; the 机械守卫 also bounces poison back to whoever used it (弹毒) */
+  guards: { target: number; bouncesPoison: boolean }[];
   /** dream targets; `by` dies at night → target dies too; consecutive → target dies */
   dreams: { by: number; target: number; consecutive: boolean }[];
   /** 女巫解药 target */
   save: number | null;
-  /** poisons; `witch` marks the witch's (舞者/假面 are immune to it) */
-  poisons: { target: number; witch: boolean }[];
+  /** poisons; `witch` marks the witch's (舞者/假面 are immune to it); `by`: who used it (a bounced poison hits them) */
+  poisons: { target: number; witch: boolean; by?: number | null }[];
   dreamBlocksPoison: boolean;
   /** 舞者 dancing with the floor: the floor is immune to knives */
   knifeImmune?: number[];
@@ -33,7 +33,7 @@ export function resolveNight(inp: NightInputs): Map<number, DeathCause[]> {
   };
   const dreamImmune = new Set(inp.dreams.map((d) => d.target));
   const guarded = new Set(inp.guards.map((g) => g.target));
-  const poisonGuarded = new Set(inp.guards.filter((g) => g.blocksPoison).map((g) => g.target));
+  const bouncing = new Set(inp.guards.filter((g) => g.bouncesPoison).map((g) => g.target));
   const knifeImmune = new Set(inp.knifeImmune ?? []);
   const witchImmune = new Set(inp.witchPoisonImmune ?? []);
 
@@ -46,11 +46,18 @@ export function resolveNight(inp: NightInputs): Map<number, DeathCause[]> {
     else if (isGuarded || isSaved) continue;
     else add(t, 'knife');
   }
+  const poisonHits = (target: number, witch: boolean) => {
+    if (witch && witchImmune.has(target)) return;
+    if (inp.dreamBlocksPoison && dreamImmune.has(target)) return;
+    add(target, 'poison');
+  };
   for (const p of inp.poisons) {
-    if (p.witch && witchImmune.has(p.target)) continue;
-    if (inp.dreamBlocksPoison && dreamImmune.has(p.target)) continue;
-    if (poisonGuarded.has(p.target)) continue;
-    add(p.target, 'poison');
+    // 机械守卫弹毒: the poison never reaches the guarded player and goes back to whoever used it
+    if (bouncing.has(p.target)) {
+      if (p.by != null && p.by !== p.target) poisonHits(p.by, false);
+      continue;
+    }
+    poisonHits(p.target, p.witch);
   }
   for (const d of inp.dreams) if (d.consecutive) add(d.target, 'dream');
   for (const e of inp.extra ?? []) add(e.seat, e.cause);

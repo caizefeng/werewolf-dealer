@@ -46,6 +46,68 @@ describe('机械狼', () => {
     expect(d.s.players[7].mech?.poison).toBe(false);
   });
 
+  it('机械守卫弹毒: a poison aimed at the guarded player goes back to whoever used it', () => {
+    const d = new Driver(JXL, { sheriff: false });
+    d.start();
+    d.pick(8, 'mechLearn', [4]); // learns the guard
+    expect(d.s.nights[0].results.mechLearn[1]).toContain('弹毒');
+    d.wolves(null);
+    d.toDay();
+    dayPass(d);
+    // night 2: the witch poisons 6, whom the 机械守卫 guards
+    d.wolves(null);
+    d.toStep('witch');
+    d.act(2, { type: 'witch', save: null, poison: 6 });
+    d.toStep('mechSkill');
+    d.act(8, { type: 'pick', step: 'mechSkill', targets: [6] });
+    d.toDay();
+    // night deaths wait to be announced: only the witch, killed by her own bounced poison
+    expect(d.s.pending).toEqual([{ seat: 2, causes: ['poison'] }]);
+    expect(d.s.nights[1].log).toContain('机械守卫守住6号，毒药反弹给2号');
+    // the 机械守卫 still guards against the knife, and never the same player two nights running
+    dayPass(d);
+    expect(d.g.p(6).alive).toBe(true);
+    expect(d.g.p(2).alive).toBe(false);
+    d.wolves(9);
+    d.toStep('mechSkill');
+    expect((d.g.promptFor(8) as { options: number[] }).options).not.toContain(6);
+    d.act(8, { type: 'pick', step: 'mechSkill', targets: [9] });
+    d.toDay();
+    expect(d.s.pending).toEqual([]);
+  });
+
+  it('机械守卫弹毒 works once per game; after that a poison on the guarded player kills', () => {
+    // 1通灵师 2女巫 3猎人 4守卫 5-7狼人 8机械狼 9毒师 10-12平民
+    const seats: RoleId[] = ['psychic', 'witch', 'hunter', 'guard', 'wolf', 'wolf', 'wolf', 'mechwolf', 'poisoner', 'villager', 'villager', 'villager'];
+    const d = new Driver(seats, { sheriff: false });
+    d.start();
+    d.pick(8, 'mechLearn', [4]);
+    d.wolves(null);
+    d.toDay();
+    dayPass(d);
+    // night 2: the witch's poison on 6 bounces back to her
+    d.wolves(null);
+    d.toStep('witch');
+    d.act(2, { type: 'witch', save: null, poison: 6 });
+    d.toStep('mechSkill');
+    expect((d.g.promptFor(8) as { lines: string[] }).lines).toContain('弹毒还可以用一次。');
+    d.act(8, { type: 'pick', step: 'mechSkill', targets: [6] });
+    d.toDay();
+    expect(d.s.pending).toEqual([{ seat: 2, causes: ['poison'] }]);
+    expect(d.s.players[7].mech?.bounced).toBe(true);
+    expect(d.g.skillView(8).notes).toContain('弹毒：已用（之后只能挡刀）');
+    dayPass(d);
+    // night 3: the 毒师 poisons 7 under the same guard: no second bounce, 7 dies
+    d.wolves(null);
+    d.toStep('poisoner');
+    d.act(9, { type: 'pick', step: 'poisoner', targets: [7] });
+    d.toStep('mechSkill');
+    expect((d.g.promptFor(8) as { lines: string[] }).lines).toContain('弹毒已经用过：今晚的守护只能挡刀。');
+    d.act(8, { type: 'pick', step: 'mechSkill', targets: [7] });
+    d.toDay();
+    expect(d.s.pending).toEqual([{ seat: 7, causes: ['poison'] }]);
+  });
+
   it('an unlearned 机械狼 checks as 机械狼 for the psychic and 狼人 for a seer', () => {
     const d = new Driver(JXL, { sheriff: false });
     d.start();

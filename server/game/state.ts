@@ -38,6 +38,8 @@ export interface MechState {
   poison: boolean;
   guardLast: number | null;
   double: 'unused' | 'used' | 'expired';
+  /** 机械守卫's 弹毒 is spent (once per game; missing in older snapshots = not yet) */
+  bounced?: boolean;
 }
 
 export interface TreasureState {

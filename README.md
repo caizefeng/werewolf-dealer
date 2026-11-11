@@ -145,10 +145,15 @@ Roles (full text in `shared/roles.ts`)
 - 白狼王: 自爆 and may take one player. A 白狼王 poisoned at night who self-destructs before the
   announcement (吞毒自爆) cannot take anyone, and his poison death is then not announced.
 - 机械狼: never meets the pack, cannot self-destruct, learns one player on night 1 (may skip) and
-  sees their role. Skills work from night 2: 预言家/通灵师 → nightly check; 女巫/毒师 → one poison;
-  守卫 → nightly guard that also blocks poison; 猎人 → gun; any wolf → 双刀 (two kills, the second
-  ignoring guards) on the first night after the pack is gone, otherwise lost. Gets the knife
-  when all pack wolves are out. Unlearned, the 通灵师 sees "机械狼"; learned, the learned role.
+  sees their role. Skills work from night 2: 预言家/通灵师 → nightly check; 女巫/毒师 → one poison
+  (机械女巫只有一瓶毒药); 守卫 → 机械守卫: a nightly guard that stops the knife and **bounces poison**
+  (弹毒, "机械守卫可守护并反弹女巫毒药"): a poison aimed at the guarded player never reaches them and kills
+  whoever used it instead (the 毒师's and a 盗宝大师 poison card bounce too, a custom-table judgement call; a
+  sleepwalker is still immune). 弹毒 works once per game; afterwards the guard only stops the knife. Never the
+  same player two nights running; 猎人 → shoots when knifed or exiled
+  (按猎人开枪处理); any wolf → 双刀 (two kills, the second ignoring guards) on the first night after the
+  pack is gone, otherwise lost; anyone else (平民, 白神 …) → no skill. Gets the knife when all pack wolves
+  are out. Unlearned, the 通灵师 sees "机械狼"; learned, the learned role.
 - 蒙面人 (京城大师赛 replaced 乌鸦 with it on the 盗宝大师 board): knifed, poisoned or 梦亡 at night
   → 中毒/负伤 instead of dying. It is left out of the dawn death announcement and goes out right after its
   own discussion speech the next day (that speech is its last words). If the day ends before it
@@ -302,7 +307,7 @@ Server environment: `PORT` (3000), `HOST`, `DATA_DIR` (room snapshots, default `
 ## Tests
 
 - `tests/engine/resolve.test.ts`: the night settlement matrix (同守同救, 破盾刀, dream immunity, 梦亡,
-  机械守卫 poison block …).
+  机械守卫 弹毒 …).
 - `tests/engine/flow.test.ts`: whole days and nights: election edge cases, 退水, PK, 双爆/单爆,
   吞毒自爆, 白狼王, witch/guard/hunter rules, 1.5 sheriff votes, curses, 白神, 屠边 and ties.
 - `tests/engine/special.test.ts`: 机械狼, 盗宝大师, dealing balance, timing secrecy, and that night prompts and audio

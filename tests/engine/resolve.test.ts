@@ -22,7 +22,7 @@ describe('night settlement', () => {
   });
 
   it('guard blocks the knife', () => {
-    expect(deaths({ knives: [{ target: 3, piercing: false }], guards: [{ target: 3, blocksPoison: false }] })).toEqual({});
+    expect(deaths({ knives: [{ target: 3, piercing: false }], guards: [{ target: 3, bouncesPoison: false }] })).toEqual({});
   });
 
   it('antidote saves the knifed player', () => {
@@ -31,22 +31,29 @@ describe('night settlement', () => {
 
   it('同守同救: guard + antidote on the same player kills', () => {
     expect(
-      deaths({ knives: [{ target: 3, piercing: false }], guards: [{ target: 3, blocksPoison: false }], save: 3 }),
+      deaths({ knives: [{ target: 3, piercing: false }], guards: [{ target: 3, bouncesPoison: false }], save: 3 }),
     ).toEqual({ 3: ['knife'] });
   });
 
   it('guard does not block poison', () => {
-    expect(deaths({ poisons: [{ target: 4, witch: true }], guards: [{ target: 4, blocksPoison: false }] })).toEqual({ 4: ['poison'] });
+    expect(deaths({ poisons: [{ target: 4, witch: true }], guards: [{ target: 4, bouncesPoison: false }] })).toEqual({ 4: ['poison'] });
   });
 
-  it('机械守卫 blocks poison and knife', () => {
-    expect(
-      deaths({ poisons: [{ target: 4, witch: true }], knives: [{ target: 4, piercing: false }], guards: [{ target: 4, blocksPoison: true }] }),
-    ).toEqual({});
+  it('机械守卫 blocks the knife and bounces the poison back to whoever used it (弹毒)', () => {
+    const guards = [{ target: 4, bouncesPoison: true }];
+    expect(deaths({ poisons: [{ target: 4, witch: true, by: 2 }], knives: [{ target: 4, piercing: false }], guards })).toEqual({ 2: ['poison'] });
+    // the 毒师's poison bounces the same way
+    expect(deaths({ poisons: [{ target: 4, witch: false, by: 7 }], guards })).toEqual({ 7: ['poison'] });
+    // a sleepwalker is immune to the bounced poison too (梦游者免疫毒药)
+    expect(deaths({ poisons: [{ target: 4, witch: true, by: 2 }], dreams: [{ by: 9, target: 2, consecutive: false }], guards })).toEqual({});
+    // unknown user: the poison just stops
+    expect(deaths({ poisons: [{ target: 4, witch: true }], guards })).toEqual({});
+    // poisons aimed elsewhere are untouched
+    expect(deaths({ poisons: [{ target: 5, witch: true, by: 2 }], guards })).toEqual({ 5: ['poison'] });
   });
 
   it('破盾刀 ignores the guard but not the antidote', () => {
-    expect(deaths({ knives: [{ target: 5, piercing: true }], guards: [{ target: 5, blocksPoison: false }] })).toEqual({
+    expect(deaths({ knives: [{ target: 5, piercing: true }], guards: [{ target: 5, bouncesPoison: false }] })).toEqual({
       5: ['knife'],
     });
     expect(deaths({ knives: [{ target: 5, piercing: true }], save: 5 })).toEqual({});
@@ -77,7 +84,7 @@ describe('night settlement', () => {
 
   it('consecutive dream kills (even if protected otherwise)', () => {
     expect(
-      deaths({ dreams: [{ by: 9, target: 6, consecutive: true }], guards: [{ target: 6, blocksPoison: false }] }),
+      deaths({ dreams: [{ by: 9, target: 6, consecutive: true }], guards: [{ target: 6, bouncesPoison: false }] }),
     ).toEqual({ 6: ['dream'] });
   });
 
