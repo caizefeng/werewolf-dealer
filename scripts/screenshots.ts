@@ -157,6 +157,7 @@ async function mainGame(): Promise<void> {
   await seer.getByRole('button', { name: '上警', exact: true }).click();
   await wolf.getByRole('button', { name: '不上警', exact: true }).click();
   await seer.locator('.speaker', { hasText: `警上发言：${SEER}号` }).waitFor({ timeout: 90_000 });
+  await seer.locator('button:enabled', { hasText: '结束发言' }).waitFor(); // the judge has finished asking
   await shot(seer, 'election');
   await seer.getByRole('button', { name: '结束发言', exact: true }).click();
   await until(wolf, '投票选出警长');
