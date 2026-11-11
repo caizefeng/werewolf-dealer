@@ -30,7 +30,7 @@ server/
 client/            # Vite + Preact
   index.html, public/ (audio/*.mp3, background*.jpg, favicons, fonts/cinzel-700.woff2, nosleep.mp4)
   src/main.tsx (router) Home.tsx Config.tsx Room.tsx panels.tsx modals.tsx ui.tsx styles.css
-  src/lib/ (store, ids/localStorage, ws reconnecting client, wakelock)
+  src/lib/ (store, ids/localStorage, ws reconnecting client, wakelock, exit = leaving a room)
   src/audio/ (engine: clip queue + ducking; music: recorded night track or generative soundtrack)
 tests/engine/      # vitest: resolve, flow, special (机械狼/盗宝/secrecy), masked (蒙面人), boards (scripted 12p games),
                    #         newroles (骑士/狼美人/舞者/假面/魔术师/诡术师/狼术师/定序王子/狼女孩 interactions),
@@ -39,7 +39,7 @@ tests/engine/      # vitest: resolve, flow, special (机械狼/盗宝/secrecy), 
 tests/engine/tables.ts  # random custom tables shared by the fuzz and bot tests
 tests/server/      # vitest: real ws clients play a game, privacy, reconnect, persistence; bots (decisions,
                    #         seating/takeovers, all-bot games on a fake clock)
-tests/e2e/         # Playwright phone profiles (game, boards, newboards, solo, music, sound specs); bots.ts = scripted ws test
+tests/e2e/         # Playwright phone profiles (game, boards, newboards, solo, music, sound, lobby specs); bots.ts = scripted ws test
                    #         players (not the built-in bots)
 scripts/           # gen_audio.py (edge-tts), prep_music.ts (night track → client/public/music/night.mp3),
                    # smoke.ts (live smoke test), loadtest.ts (simulated rooms of phones), find-overflow.mjs,

@@ -7,6 +7,7 @@ import { audio } from './audio/engine.ts';
 import { ConfigEditor } from './Config.tsx';
 import { act, ownerCmd, SeatPicker } from './panels.tsx';
 import type { ModalKind } from './Room.tsx';
+import { exitRoom } from './lib/exit.ts';
 import { toast } from './lib/store.ts';
 import { send } from './lib/ws.ts';
 import { Btn, Modal, RoleIcon, copyText, factionClass, seatList } from './ui.tsx';
@@ -412,6 +413,16 @@ export function OwnerMenu({
               复制房主链接（换设备时使用）
             </button>
           )}
+          <button
+            type="button"
+            class="menu-item"
+            onClick={() => {
+              onClose();
+              exitRoom(v);
+            }}
+          >
+            退出房间（返回首页）
+          </button>
         </div>
         {owner && (
           <div class="menu-sec">

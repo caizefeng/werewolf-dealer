@@ -4,6 +4,7 @@ import { ROLES } from '../../shared/roles.ts';
 import type { RoomView, SeatView } from '../../shared/types.ts';
 import { audio } from './audio/engine.ts';
 import { navigate } from './Home.tsx';
+import { exitRoom } from './lib/exit.ts';
 import { saveName, savedName } from './lib/ids.ts';
 import { serverNow, useStore } from './lib/store.ts';
 import { keepAwake } from './lib/wakelock.ts';
@@ -155,6 +156,10 @@ function RoomScreen({ v, connState }: { v: RoomView; connState: string }) {
           <button type="button" onClick={() => setModal('name')}>
             <RoleIcon icon="feather" size={22} />
             <span>昵称</span>
+          </button>
+          <button type="button" onClick={() => exitRoom(v)}>
+            <RoleIcon icon="exit" size={22} />
+            <span>退出</span>
           </button>
         </nav>
       )}

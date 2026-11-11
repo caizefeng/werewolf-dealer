@@ -165,6 +165,12 @@ const ICONS: Record<string, JSX.Element> = {
       <path d="M9.2 3.2 10.6 5M14.8 3.2 13.4 5" />
     </>
   ),
+  exit: (
+    <>
+      <path d="M13.5 4h4.8A1.7 1.7 0 0 1 20 5.7v12.6a1.7 1.7 0 0 1-1.7 1.7h-4.8" />
+      <path d="M9.5 8 5.5 12l4 4M5.5 12h10" />
+    </>
+  ),
   bot: (
     <>
       <rect x="4.5" y="8" width="15" height="11.5" rx="3" />

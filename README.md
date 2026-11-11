@@ -56,6 +56,10 @@ Short of players, or trying a board alone? [Bots](#playing-with-bots) fill the e
 7. The result screen shows every role, who won, the buried cards (盗宝大师) and a god's-eye night log.
    The owner can 再来一局 (same seats, new deal) or reconfigure (⋮ → 重新配置并开始).
 
+Anyone can leave a room from the lobby's bottom bar (**退出**) or the menu (**退出房间**). A seated player
+gives the seat up in the lobby; during a game the seat and role are kept for when they come back through the
+link. The owner keeps ownership and the room stays.
+
 Bottom bar (identical for every role, so a glance at someone's phone reveals nothing):
 **身份** (role card), **技能** (hidden menu: 自爆 / 白狼王自爆带人 / 骑士决斗, potions and other private status),
 **记录** (public history: deaths, elections, 票型 vote breakdowns, 自爆, shots, badge passes),
@@ -352,6 +356,7 @@ Server environment: `PORT` (3000), `HOST`, `DATA_DIR` (room snapshots, default `
   reopens on the next tap (other phones never load it); 测试声音 explains a switched-off setting; 声音诊断; sound
   cut off mid-game (a suspended engine, an iPhone page back from the background) comes back with one tap on a
   freshly built engine.
+- `tests/e2e/lobby.spec.ts`: 退出 from the lobby frees the player's seat; the owner leaves and comes back as owner.
 - `tests/e2e/music.spec.ts`: at night the owner's phone plays the recorded track if the instance has one,
   the synthesized soundtrack if not (or until a slow download arrives, then crossfades), and the music switch
   in the menu stops and restarts it.
