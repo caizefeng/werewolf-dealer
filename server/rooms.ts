@@ -289,7 +289,7 @@ export class Room {
   planBots(): void {
     const g = this.game;
     const now = Date.now();
-    const voiceEnd = g ? this.voiceEnd(g, now) : 0;
+    const voiceEnd = g ? g.voiceEnd(now) : 0;
     const salt = `${this.id}:${this.data.gameNo}`;
     this.data.seats.forEach((cid, i) => {
       const seat = i + 1;
@@ -335,12 +335,6 @@ export class Room {
     this.changed();
   }
 
-  /** when the judge's voice on the owner's phone finishes the lines announced so far */
-  private voiceEnd(g: Game, now: number): number {
-    let end = 0;
-    for (const a of g.s.announcements) if (a.at > now - 120_000) end = Math.max(end, a.at) + g.clipsDuration(a.clips);
-    return end;
-  }
 
   /** after any mutation: reschedule, persist, push views */
   changed(): void {

@@ -15,8 +15,9 @@ import type {
 } from '../../shared/types.ts';
 import { rolesSummary } from './Config.tsx';
 import type { ModalKind } from './Room.tsx';
+import { serverNow } from './lib/store.ts';
 import { send } from './lib/ws.ts';
-import { Btn, Elapsed, RoleIcon, factionClass, seatList } from './ui.tsx';
+import { Btn, Elapsed, RoleIcon, factionClass, seatList, useTicker } from './ui.tsx';
 
 export const act = (a: GameAction) => send({ t: 'act', action: a });
 export const ownerCmd = (c: OwnerCommand) => send({ t: 'owner', cmd: c });
@@ -727,11 +728,7 @@ function SpeechPanel({ v }: { v: RoomView }) {
         ))}
       </div>
       <div class="btn-row">
-        {cur === me && (
-          <Btn kind="primary" onClick={() => act({ type: 'endSpeech' })}>
-            {ph.context === 'lastWords' ? '遗言结束' : '结束发言'}
-          </Btn>
-        )}
+        {cur === me && <EndSpeechButton startedAt={ph.startedAt} lastWords={ph.context === 'lastWords'} />}
         {isCandidate && (
           <Btn
             kind="ghost"
@@ -744,6 +741,20 @@ function SpeechPanel({ v }: { v: RoomView }) {
         )}
       </div>
     </div>
+  );
+}
+
+/** the speaker's button: a speech starts once the judge has finished asking for it (phase.startedAt) */
+function EndSpeechButton({ startedAt, lastWords }: { startedAt: number; lastWords: boolean }) {
+  useTicker(250);
+  const waiting = serverNow() < startedAt;
+  return (
+    <>
+      <Btn kind="primary" disabled={waiting} onClick={() => act({ type: 'endSpeech' })}>
+        {lastWords ? '遗言结束' : '结束发言'}
+      </Btn>
+      {waiting && <span class="muted wait-judge">法官说完后开始</span>}
+    </>
   );
 }
 

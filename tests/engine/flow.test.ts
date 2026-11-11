@@ -59,6 +59,14 @@ describe('night 1 and sheriff election', () => {
     d.skipSkills();
     expect(d.phase.kind).toBe('speech');
     expect((d.phase as any).context).toBe('lastWords');
+    // the last words begin when the judge's voice has played every line so far, the 遗言 cue included
+    // (the phone keeps 遗言结束 disabled until then): the exile, the skill check, then "请5号玩家发表遗言"
+    const tail = d.s.announcements.slice(-3);
+    expect(tail.map((a) => a.text)).toEqual(['5号玩家被放逐出局。', '请出局的玩家确认是否发动技能。', '请5号玩家发表遗言。']);
+    const lw = tail[2];
+    expect((d.phase as any).startedAt).toBe(d.g.voiceEnd(d.now));
+    expect((d.phase as any).startedAt).toBeGreaterThanOrEqual(lw.at + d.g.clipsDuration(lw.clips));
+    expect((d.phase as any).startedAt).toBeGreaterThan(d.now);
     d.endSpeeches();
     expect(d.phase.kind).toBe('night');
     expect(d.s.night).toBe(2);

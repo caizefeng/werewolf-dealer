@@ -74,6 +74,9 @@ syntax and import with explicit `.ts` extensions.
 - Night deaths are computed at dawn into `state.pending` and only applied when announced
   (after the day-1 election). Never expose pending deaths in any view.
 - Day = queue of stages (`election`, `nightDeaths`, `discussion`, `exile`); 自爆 truncates it.
+- A speech starts at `voiceEnd(now)` (`phase.startedAt`): when the judge's voice has played every line announced so
+  far, its own cue included (e.g. 请X号玩家发表遗言). The phone keeps 结束发言/遗言结束 disabled until then; the server
+  does not enforce it (the owner's 下一位 always works), and bots wait for the same `voiceEnd`.
 - 蒙面人: night deaths of a mask holder go to `state.wounded` (not `pending`); they die after their own
   discussion speech (`advanceSpeech`) or, if they never spoke, in `nextStage` before night falls.
   `maskedEarlyWin()` implements the ≥2-wolves early 屠神 settlement; `maskActiveEligible()` the

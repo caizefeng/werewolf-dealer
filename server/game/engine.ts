@@ -524,6 +524,16 @@ export class Game {
     if (this.s.announcements.length > 40) this.s.announcements.splice(0, this.s.announcements.length - 40);
   }
 
+  /**
+   * When the judge's voice on the owner's phone finishes every line announced so far (the phone plays them one
+   * after another), never before `now`. A speech starts then, so nobody ends it before being asked to speak.
+   */
+  voiceEnd(now: number): number {
+    let end = 0;
+    for (const a of this.s.announcements) if (a.at > now - 120_000) end = Math.max(end, a.at) + this.clipsDuration(a.clips);
+    return Math.max(now, end);
+  }
+
   clipsDuration(clips: string[]): number {
     return clips.reduce((t, c) => t + this.dur(c) + 0.08, 0) * this.k;
   }
@@ -1678,7 +1688,7 @@ export class Game {
       `请警上玩家依次发言，从${order[0]}号开始，${e.dir === 'cw' ? '顺序' : '逆序'}发言。`,
       ['sheriff_speech', 'speech_from', numClip(order[0]), e.dir === 'cw' ? 'speech_cw' : 'speech_ccw'],
     );
-    s.phase = { kind: 'speech', context: 'sheriff', order, idx: 0, startedAt: now };
+    s.phase = { kind: 'speech', context: 'sheriff', order, idx: 0, startedAt: this.voiceEnd(now) };
   }
 
   private withdraw(seat: number, now: number): string | null {
@@ -1824,7 +1834,7 @@ export class Game {
       e.pk = tops;
       const order = circular(tops, tops[0], e.dir, this.n);
       this.announce(now, `${nums(tops)}平票，请平票的玩家进行PK发言。`, ['pk_speech']);
-      s.phase = { kind: 'speech', context: 'sheriffPk', order, idx: 0, startedAt: now };
+      s.phase = { kind: 'speech', context: 'sheriffPk', order, idx: 0, startedAt: this.voiceEnd(now) };
       return;
     }
     // exile
@@ -1834,7 +1844,7 @@ export class Game {
     s.exilePk = tops;
     const order = tops.slice().sort((a, b) => a - b);
     this.announce(now, `${nums(tops)}平票，请平票的玩家进行PK发言。`, ['pk_speech']);
-    s.phase = { kind: 'speech', context: 'exilePk', order, idx: 0, startedAt: now };
+    s.phase = { kind: 'speech', context: 'exilePk', order, idx: 0, startedAt: this.voiceEnd(now) };
   }
 
   /** 定序王子: every exile result waits a fixed window while the card is in the pool and unused
@@ -1878,7 +1888,7 @@ export class Game {
     ]);
     this.log('skill', `${seat}号翻牌为定序王子，${ph.target}号的放逐作废，重新投票`);
     s.exilePk = null;
-    s.phase = { kind: 'speech', context: 'prince', order: [seat], idx: 0, startedAt: now };
+    s.phase = { kind: 'speech', context: 'prince', order: [seat], idx: 0, startedAt: this.voiceEnd(now) };
     return null;
   }
 
@@ -1952,9 +1962,9 @@ export class Game {
     while (idx < ph.order.length && !this.speechEligible(ph.order[idx], ph.context)) idx++;
     if (idx < ph.order.length) {
       ph.idx = idx;
-      ph.startedAt = now;
       if (ph.context === 'lastWords')
         this.announce(now, `请${ph.order[idx]}号玩家发表遗言。`, ['please', numClip(ph.order[idx]), 'lw_suffix']);
+      ph.startedAt = this.voiceEnd(now);
       return;
     }
     this.finishSpeeches(ph.context, now);
@@ -1992,7 +2002,7 @@ export class Game {
     let idx = r.idx;
     while (idx < r.order.length && !this.speechEligible(r.order[idx], r.context)) idx++;
     if (idx < r.order.length) {
-      s.phase = { kind: 'speech', context: r.context, order: r.order, idx, startedAt: now };
+      s.phase = { kind: 'speech', context: r.context, order: r.order, idx, startedAt: this.voiceEnd(now) };
       return;
     }
     this.finishSpeeches(r.context, now);
@@ -2169,7 +2179,7 @@ export class Game {
     const lw = ph.lastWords.filter((x, i, a) => a.indexOf(x) === i && !this.p(x).alive);
     if (lw.length > 0) {
       this.announce(now, `请${lw[0]}号玩家发表遗言。`, ['please', numClip(lw[0]), 'lw_suffix']);
-      s.phase = { kind: 'speech', context: 'lastWords', order: lw, idx: 0, startedAt: now };
+      s.phase = { kind: 'speech', context: 'lastWords', order: lw, idx: 0, startedAt: this.voiceEnd(now) };
       return;
     }
     this.afterDeaths(now);
@@ -2307,7 +2317,7 @@ export class Game {
       dir === 'cw' ? 'speech_cw' : 'speech_ccw',
     ]);
     this.log('info', `发言顺序：${s.discussionNote}`);
-    s.phase = { kind: 'speech', context: 'discussion', order, idx: 0, startedAt: now };
+    s.phase = { kind: 'speech', context: 'discussion', order, idx: 0, startedAt: this.voiceEnd(now) };
   }
 
   private startExileVote(now: number, pk: boolean): void {

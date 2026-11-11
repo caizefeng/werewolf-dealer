@@ -50,7 +50,9 @@ Short of players, or trying a board alone? [Bots](#playing-with-bots) fill the e
    and plays music between them. The called role acts on their phone; everyone else sees 请闭眼.
 6. **Day**: 上警 sign-up, 警上发言 (退水 any time), 警下 vote, death announcement, 发动技能 window,
    遗言, the sheriff picks the speaking direction, speeches, exile vote (警长 1.5 票), PK on ties.
-   The current speaker taps 结束发言; the owner can always advance with 下一位.
+   The current speaker taps 结束发言; the owner can always advance with 下一位. A speech (or 遗言) begins
+   when the judge has finished asking for it, so 结束发言 / 遗言结束 stays disabled while the voice is still
+   playing the lines before it.
 7. The result screen shows every role, who won, the buried cards (盗宝大师) and a god's-eye night log.
    The owner can 再来一局 (same seats, new deal) or reconfigure (⋮ → 重新配置并开始).
 
