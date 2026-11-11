@@ -7,6 +7,9 @@ playwright-report/
 *.log
 scripts/.venv/
 
+# night music you generate yourself (scripts/prep_music.ts); deploy/deploy.sh still copies it
+client/public/music/
+
 # machine-specific deployment config and notes (never commit real hosts/domains)
 deploy/deploy.env
 CLAUDE.local.md

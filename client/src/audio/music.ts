@@ -1,6 +1,103 @@
-// Generative night ambience (original, synthesized live with Web Audio):
-// a low drone, wind, slow minor pads, sparse bells and a soft heartbeat.
-// Broadband enough to mask taps and whispers around the table.
+// Night music. NightTrack plays a recorded track (client/public/music/night.mp3, optional and
+// git-ignored; see scripts/prep_music.ts) and loops it with a long crossfade. Without that file,
+// NightMusic synthesizes an original ambience live with Web Audio: a low drone, wind, slow minor pads,
+// sparse bells and a soft heartbeat, broadband enough to mask taps and whispers around the table.
+
+export interface NightSound {
+  start(): void;
+  stop(fade?: number): void;
+}
+
+/** equal-power fade curves: two uncorrelated passes overlapping with these keep the same loudness */
+function fadeCurve(up: boolean): Float32Array {
+  const n = 128;
+  const c = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    const x = i / (n - 1);
+    c[i] = up ? Math.sin((x * Math.PI) / 2) : Math.cos((x * Math.PI) / 2);
+  }
+  return c;
+}
+
+export class NightTrack implements NightSound {
+  /** seconds each pass overlaps the next one */
+  static readonly XFADE = 8;
+  private ctx: AudioContext;
+  private buf: AudioBuffer;
+  private out: GainNode;
+  private passes = new Set<AudioBufferSourceNode>();
+  private timer: ReturnType<typeof setTimeout> | null = null;
+  private stopped = false;
+
+  constructor(ctx: AudioContext, dest: AudioNode, buf: AudioBuffer) {
+    this.ctx = ctx;
+    this.buf = buf;
+    this.out = ctx.createGain();
+    this.out.gain.value = 0;
+    this.out.connect(dest);
+  }
+
+  /** `offset`: where in the track to begin (tests start near the end to hear the loop) */
+  start(offset = 0): void {
+    const t = this.ctx.currentTime + 0.05;
+    this.out.gain.setValueAtTime(0, t);
+    this.out.gain.linearRampToValueAtTime(1, t + 4);
+    this.pass(t, Math.max(0, Math.min(offset, this.buf.duration - 2 * this.xfade)), false);
+  }
+
+  private get xfade(): number {
+    return Math.min(NightTrack.XFADE, this.buf.duration / 4);
+  }
+
+  /** one pass through the track; the next starts `xfade` seconds before this one ends */
+  private pass(at: number, offset: number, fadeIn: boolean): void {
+    if (this.stopped) return;
+    const ctx = this.ctx;
+    const xf = this.xfade;
+    const g = ctx.createGain();
+    g.connect(this.out);
+    const src = ctx.createBufferSource();
+    src.buffer = this.buf;
+    src.connect(g);
+    const end = at + this.buf.duration - offset;
+    if (fadeIn) g.gain.setValueCurveAtTime(fadeCurve(true), at, xf);
+    else g.gain.setValueAtTime(1, at);
+    g.gain.setValueCurveAtTime(fadeCurve(false), end - xf, xf);
+    src.start(at, offset);
+    src.stop(end + 0.05);
+    this.passes.add(src);
+    src.onended = () => {
+      this.passes.delete(src);
+      g.disconnect();
+    };
+    // timers are coarse and pause in background tabs: arm the next pass a few seconds early, at an exact audio time
+    const next = end - xf;
+    this.timer = setTimeout(() => this.pass(next, 0, true), Math.max(0, (next - ctx.currentTime - 3) * 1000));
+  }
+
+  stop(fade = 2.5): void {
+    if (this.stopped) return;
+    this.stopped = true;
+    if (this.timer) clearTimeout(this.timer);
+    const t = this.ctx.currentTime;
+    this.out.gain.cancelScheduledValues(t);
+    this.out.gain.setValueAtTime(this.out.gain.value, t);
+    this.out.gain.linearRampToValueAtTime(0, t + fade);
+    setTimeout(
+      () => {
+        for (const s of this.passes) {
+          try {
+            s.stop();
+          } catch {
+            /* already stopped */
+          }
+        }
+        this.out.disconnect();
+      },
+      fade * 1000 + 200,
+    );
+  }
+}
 
 function impulse(ctx: AudioContext, seconds: number, decay: number): AudioBuffer {
   const rate = ctx.sampleRate;
@@ -37,7 +134,7 @@ const CHORDS = [
 ];
 const BELLS = [69, 72, 74, 76, 79, 81, 84];
 
-export class NightMusic {
+export class NightMusic implements NightSound {
   private ctx: AudioContext;
   private out: GainNode;
   private dry: GainNode;

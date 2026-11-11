@@ -31,7 +31,7 @@ client/            # Vite + Preact
   index.html, public/ (audio/*.mp3, background*.jpg, favicons, fonts/cinzel-700.woff2, nosleep.mp4)
   src/main.tsx (router) Home.tsx Config.tsx Room.tsx panels.tsx modals.tsx ui.tsx styles.css
   src/lib/ (store, ids/localStorage, ws reconnecting client, wakelock)
-  src/audio/ (engine: clip queue + ducking; music: generative night soundtrack)
+  src/audio/ (engine: clip queue + ducking; music: recorded night track or generative soundtrack)
 tests/engine/      # vitest: resolve, flow, special (机械狼/盗宝/secrecy), masked (蒙面人), boards (scripted 12p games),
                    #         newroles (骑士/狼美人/舞者/假面/魔术师/诡术师/狼术师/定序王子/狼女孩 interactions),
                    #         fuzz (~5,900 random games: every preset, 400 per special board, 1,500 random custom
@@ -39,9 +39,10 @@ tests/engine/      # vitest: resolve, flow, special (机械狼/盗宝/secrecy), 
 tests/engine/tables.ts  # random custom tables shared by the fuzz and bot tests
 tests/server/      # vitest: real ws clients play a game, privacy, reconnect, persistence; bots (decisions,
                    #         seating/takeovers, all-bot games on a fake clock)
-tests/e2e/         # Playwright phone profiles (game, boards, newboards, solo specs); bots.ts = scripted ws test
+tests/e2e/         # Playwright phone profiles (game, boards, newboards, solo, music specs); bots.ts = scripted ws test
                    #         players (not the built-in bots)
-scripts/           # gen_audio.py (edge-tts), smoke.ts (live smoke test), loadtest.ts (simulated rooms of phones), find-overflow.mjs,
+scripts/           # gen_audio.py (edge-tts), prep_music.ts (night track → client/public/music/night.mp3),
+                   # smoke.ts (live smoke test), loadtest.ts (simulated rooms of phones), find-overflow.mjs,
                    # screenshots.ts (README screenshots → docs/screenshots)
 deploy/            # deploy.sh, deploy.env.example, werewolf.caddy.template (deploy.env is git-ignored)
 Dockerfile, docker-compose.yml
@@ -106,6 +107,12 @@ syntax and import with explicit `.ts` extensions.
 `scripts/gen_audio.py` (venv `scripts/.venv`, `pip install edge-tts`; needs node + ffmpeg) renders
 every line in `shared/audio.ts` with `zh-CN-YunyangNeural`, trims/normalises, writes durations.
 Only owner devices play audio; music is ducked to ~3% while the judge speaks.
+Night music (`client/src/audio/music.ts`, both implement `NightSound`): `NightTrack` plays the optional recorded
+track `client/public/music/night.mp3` (git-ignored, deployed by rsync; prepare it with `node scripts/prep_music.ts
+<file>` → -20 LUFS, the synth's level) and loops it with an 8 s equal-power crossfade; `NightMusic` synthesizes the
+ambience when there is no track. `AudioEngine.loadTrack()` starts at the first tap (`unlock()`); if the night begins
+before the track is decoded, it waits 1.5 s, then plays the synth and crossfades to the track once it is ready.
+`<html data-night-music>` says which one plays (e2e).
 
 ## Deployment
 - The repo is generic: users deploy their own instance (README "Deploy your own instance").

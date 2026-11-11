@@ -234,8 +234,16 @@ flow in `server/game/engine.ts`.
 - Judge lines are pre-generated mp3 clips (`client/public/audio`, ~1.5 MB, Microsoft neural voice
   `zh-CN-YunyangNeural` via edge-tts). Announcements with numbers are composed from clips
   ("3号" + "玩家自爆"). If a clip cannot load, the browser's own speech synthesis reads the text.
-- The night soundtrack is generated live with Web Audio (`client/src/audio/music.ts`: drone, wind,
-  minor pads, bells, heartbeat). It's original, so there are no licensing issues. It ducks under the voice and fades out at dawn.
+- Night music: if the instance has a recorded track at `client/public/music/night.mp3`, the owner's phone
+  plays it, looping with an 8-second crossfade. Otherwise a soundtrack is generated live with Web Audio
+  (`client/src/audio/music.ts`: drone, wind, minor pads, bells, heartbeat). That one is original, so there
+  are no licensing issues. Either way the music ducks under the judge's voice and fades out at dawn.
+- To use your own night music, for example one made with an AI music service, prepare it with
+  `node scripts/prep_music.ts <your track>`. The script trims the silence at both ends, matches the loudness
+  of the built-in soundtrack (-20 LUFS, one linear gain, so the track's dynamics are kept) and writes
+  `client/public/music/night.mp3`. That folder is git-ignored, so the track stays yours, and `deploy/deploy.sh`
+  copies it to your server. The owner's phone starts downloading it (3–4 MB) at the first tap in the room;
+  if a night begins before it is ready, the synthesized soundtrack plays and crossfades to the track when it arrives.
 - Only owner devices play sound (toggle 🔊 in the top bar). Phones require a tap before audio can
   start; a banner asks for it. iOS 16.4+ plays even with the silent switch on.
 - All phones keep the screen awake during a game (Wake Lock API, with a muted-video fallback).
@@ -318,6 +326,9 @@ Server environment: `PORT` (3000), `HOST`, `DATA_DIR` (room snapshots, default `
   狼女孩 (首夜禁刀, confession, 自爆报复) through the UI, each game played to the end.
 - `tests/e2e/solo.spec.ts`: the owner fills the table with bots from the lobby (and adds or removes single
   bots in the owner menu), then plays a whole game as 预言家 among them.
+- `tests/e2e/music.spec.ts`: at night the owner's phone plays the recorded track if the instance has one,
+  the synthesized soundtrack if not (or until a slow download arrives, then crossfades), and the music switch
+  in the menu stops and restarts it.
 
 ## Deploy your own instance
 
@@ -417,4 +428,5 @@ MIT © Zefeng Cai (see `LICENSE`).
 - Background art and wolf favicons come from [werewolf-viewer](https://github.com/caizefeng/werewolf-viewer).
 - Title font: Cinzel, SIL Open Font License 1.1 (`client/public/fonts/OFL-Cinzel.txt`).
 - Judge voice clips are generated with Microsoft's `zh-CN-YunyangNeural` neural voice via edge-tts.
-- The night soundtrack is synthesized live in the browser; no recorded music is included.
+- The repository contains no recorded music: without a track of your own, the night soundtrack is
+  synthesized live in the browser.
