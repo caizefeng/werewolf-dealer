@@ -651,9 +651,9 @@ describe('定序王子 (prince)', () => {
   });
 
   it('a buried prince card still opens the window, so the table cannot tell it is buried', () => {
-    // custom 盗宝大师 table, buried 定序王子 + 2 villagers: 1盗宝 2预言家 3女巫 4猎人 5-7狼 8-9平民
+    // custom 盗宝大师 table, buried 定序王子 + 平民 + 狼人: 1盗宝 2预言家 3女巫 4猎人 5-7狼 8-9平民
     const seats: RoleId[] = ['treasure', 'seer', 'witch', 'hunter', 'wolf', 'wolf', 'wolf', 'villager', 'villager'];
-    const d = new Driver(seats, { sheriff: false }, ['prince', 'villager', 'villager']);
+    const d = new Driver(seats, { sheriff: false }, ['prince', 'villager', 'wolf']);
     d.start();
     d.wolves(null);
     d.toDay();
@@ -885,20 +885,22 @@ describe('new roles on custom tables (with 机械狼 and 盗宝大师)', () => {
     expect([d.s.players[6].alive, d.s.players[7].alive]).toEqual([false, false]); // 8 guarded but pierced
   });
 
-  it('盗宝大师 holding 骑士/舞者/魔术师/定序王子 cards gets no night skill from them; a buried 舞者 is still called', () => {
-    // 1盗宝 2预言家 3女巫 4猎人 5-7狼 8-9平民; buried 舞者 + 魔术师 + 平民 (2神1民)
+  it('盗宝大师 holding 骑士/舞者/魔术师/定序王子 cards gets no night skill from them; a buried role is still called', () => {
+    // 1盗宝 2预言家 3女巫 4猎人 5-7狼 8-9平民; buried: one of these gods + 平民 + 狼人
     const seats: RoleId[] = ['treasure', 'seer', 'witch', 'hunter', 'wolf', 'wolf', 'wolf', 'villager', 'villager'];
-    const d = new Driver(seats, { sheriff: false }, ['dancer', 'magician', 'villager']);
-    expect(stepsForNight(d.s.config, 1)).toContain('magician');
-    expect(stepsForNight(d.s.config, 2)).toContain('dancer');
-    d.start();
-    d.toStep('treasure');
-    const pr = d.g.promptFor(1) as any;
-    expect(pr.kind).toBe('treasure');
-    for (const c of pr.cardSkills) expect(c.options).toEqual([]); // camouflage only
-    expect(d.s.players[0].treasure?.countsAs).toBe('god');
-    // the buried 魔术师's step waits a fake time and swaps nothing
-    expect(d.s.nights[0].swaps).toBeUndefined();
+    for (const card of ['knight', 'dancer', 'magician', 'prince'] as RoleId[]) {
+      const d = new Driver(seats, { sheriff: false }, [card, 'villager', 'wolf']);
+      if (card === 'magician') expect(stepsForNight(d.s.config, 1)).toContain('magician');
+      if (card === 'dancer') expect(stepsForNight(d.s.config, 2)).toContain('dancer');
+      d.start();
+      d.toStep('treasure');
+      const pr = d.g.promptFor(1) as any;
+      expect(pr.kind).toBe('treasure');
+      for (const c of pr.cardSkills) expect(c.options, card).toEqual([]); // camouflage only
+      expect(d.s.players[0].treasure?.faction).toBe('wolf');
+      // the buried 魔术师's step waits a fake time and swaps nothing
+      if (card === 'magician') expect(d.s.nights[0].swaps).toBeUndefined();
+    }
   });
 });
 

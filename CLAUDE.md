@@ -92,7 +92,7 @@ syntax and import with explicit `.ts` extensions.
 - 舞池/殉情 are settled in `resolveNight` (`extra`, `lovers`); `canShootFor` allows a gun only for knife/exile.
 - 机械守卫 (`guards[].bouncesPoison`): a poison aimed at its target goes to the poison's `by` (who used it) instead
   (弹毒), once per game (`mech.bounced`, set in `settleNight`); afterwards it guards like a 守卫 (knife only). Every
-  poison in `nightInputs` must carry `by`.
+  poison in `nightInputs` must carry `by`. Presets with 首夜禁刀: 盗宝大师, 狼女孩.
 - 定序王子: every exile result goes through `exileOrPrince` (fixed window while the card is unused, even if
   the prince is dead); 骑士 duels only in `duelWindow()` (discussion/exilePk speeches); a won duel clears
   `dayQueue` and `resume`.

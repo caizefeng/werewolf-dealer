@@ -94,8 +94,9 @@ export const BOARDS: BoardPreset[] = [
   {
     id: 'dbds',
     name: '盗宝大师',
-    note: '15张牌，埋3张底牌',
+    note: '15张牌，埋3张底牌，首夜禁刀',
     roles: { treasure: 1, psychic: 1, poisoner: 1, hunter: 1, dreamer: 1, masked: 1, wolfking: 1, wolf: 3, villager: 5 },
+    rules: { firstNightNoKnife: true },
   },
   {
     id: 'lmqs',
@@ -183,15 +184,9 @@ export function validateConfig(cfg: GameConfig): string | null {
   const gods = countBy(roles, (id) => ROLES[id].category === 'god');
   const villagers = countBy(roles, (id) => ROLES[id].category === 'villager');
   if ((roles.treasure ?? 0) > 0) {
-    // buried cards must be one of: 1 wolf + 1 god + 1 villager, 2 gods + 1 villager, 1 god + 2 villagers
+    // the three buried cards are always one god, one villager and one (plain) pack wolf: 盗宝大师 is a wolf
     const buryWolves = countBy(roles, (id) => ROLES[id].pack);
-    const ok =
-      (buryWolves >= 1 && gods >= 1 && villagers >= 1) ||
-      (gods >= 2 && villagers >= 1) ||
-      (gods >= 1 && villagers >= 2);
-    if (!ok) return '盗宝大师需要牌池中至少有可埋的「一狼一神一民」「两神一民」或「一神两民」';
-    // a buried wolf turns 盗宝大师 into a wolf, so one wolf card in the pool is enough
-    if (wolves < 1) return '至少需要一名狼人阵营的身份';
+    if (!(buryWolves >= 1 && gods >= 1 && villagers >= 1)) return '盗宝大师需要牌池中至少有一张神职、一张平民和一张狼人可以埋作底牌';
   } else if (wolves < 1) {
     return '至少需要一名狼人阵营的身份';
   }

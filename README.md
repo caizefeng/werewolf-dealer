@@ -161,10 +161,11 @@ Roles (full text in `shared/roles.ts`)
   protect it, and 同守同救 wounds it. If its death means 屠神 and two or more wolves remain, the game is
   settled at dawn (the board designer's ruling). A wounded sheriff speaks last, goes out, and passes
   the badge before the vote. The player sees their wound only inside 身份/技能.
-- 盗宝大师 (15 cards for 12 seats; 通灵师 毒师 猎人 摄梦人 蒙面人 + 狼王 3狼 + 5民): three buried cards, always
-  1狼1神1民, 2神1民 or 1神2民 (the buried wolf is a 普通狼人). With a wolf card it is 盗宝狼: wolf faction,
-  never meets the pack, gets the knife after its teammates (the pack can tell from its own size).
-  Otherwise good, counting as 神 (2 gods buried) or 民. Each night it uses one card, never the same one
+- 盗宝大师 (15 cards for 12 seats; 通灵师 毒师 猎人 摄梦人 蒙面人 + 狼王 3狼 + 5民; 首夜禁刀: nobody kills on
+  night 1, "本版型首夜狼人无法发动击杀技能"): three buried cards, always one god, one villager and one
+  普通狼人, so it is always 盗宝狼: wolf faction, never meets the pack, gets the knife after its teammates
+  (the pack can tell from its own size). Custom tables with 盗宝大师 need at least one god, one villager and
+  one pack wolf in the pool to bury. Each night it uses one card, never the same one
   twice in a row. God cards give that night's skill (the 女巫 card has only a poison), wolf and villager
   cards are camouflage, and so are cards without a simple night skill on custom tables (白神, 骑士, 舞者,
   魔术师, 定序王子; a buried role is still called every night). Holding the 猎人 card it may shoot on death; holding the 蒙面人 card it has the

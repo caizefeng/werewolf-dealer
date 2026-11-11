@@ -12,9 +12,9 @@ export interface DealResult {
 type Kind = 'W' | 'G' | 'V' | 'X';
 
 /**
- * Deals the configured roles. With 盗宝大师 three cards are buried first; the
- * buried set must be 1狼1神1民, 2神1民 or 1神2民 (so the table keeps the usual
- * 4/4/4 balance). The buried wolf is always a 普通狼人 when the pool has one.
+ * Deals the configured roles. With 盗宝大师 three cards are buried first: always one god, one villager and one
+ * 普通狼人 (another pack wolf only when the pool has no plain one), so 盗宝大师 is always on the wolf side and the
+ * table keeps the usual 4/4/4 balance.
  */
 export function deal(roles: RoleCounts, rng: RngHolder): DealResult {
   const all = rolesList(roles);
@@ -35,7 +35,7 @@ export function deal(roles: RoleCounts, rng: RngHolder): DealResult {
     const w = k.filter((x) => x === 'W').length;
     const g = k.filter((x) => x === 'G').length;
     const v = k.filter((x) => x === 'V').length;
-    return (w === 1 && g === 1 && v === 1) || (w === 0 && g === 2 && v === 1) || (w === 0 && g === 1 && v === 2);
+    return w === 1 && g === 1 && v === 1;
   };
   // Rejection sampling over uniformly random 3-card subsets (conditioned on validity).
   for (let attempt = 0; attempt < 10000; attempt++) {
@@ -48,6 +48,7 @@ export function deal(roles: RoleCounts, rng: RngHolder): DealResult {
   throw new Error('无法为盗宝大师埋牌，请检查配置');
 }
 
+/** always 盗宝狼 for a dealt game; a good 盗宝大师 only remains possible in games dealt before that rule (snapshots) */
 export function treasureFaction(buried: RoleId[]): { faction: 'good' | 'wolf'; countsAs: 'god' | 'villager' | 'wolf' } {
   if (buried.some((r) => ROLES[r].faction === 'wolf')) return { faction: 'wolf', countsAs: 'wolf' };
   const gods = buried.filter((r) => ROLES[r].category === 'god').length;

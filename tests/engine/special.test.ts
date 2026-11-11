@@ -203,6 +203,18 @@ describe('机械狼', () => {
 });
 
 describe('盗宝大师', () => {
+  it('the board bans the knife on night 1 (首夜禁刀), for the pack and for 盗宝大师', () => {
+    const rules = presetConfig('dbds').rules;
+    expect(rules.firstNightNoKnife).toBe(true);
+    const d = new Driver(DBDS, rules, ['masked', 'wolf', 'villager']);
+    d.start();
+    d.toStep('wolves');
+    const p = d.g.promptFor(6) as { noKnife?: boolean; options: number[] };
+    expect(p.noKnife).toBe(true);
+    expect(p.options).toEqual([]);
+    expect(d.g.knifeAllowed()).toBe(false);
+  });
+
   it('buried wolf → wolf faction; picks a card each night, not the same twice in a row', () => {
     const d = new Driver(DBDS, { sheriff: false, dreamBlocksPoison: false }, ['crow', 'villager', 'wolf']);
     const tp = d.s.players[0];
@@ -237,7 +249,7 @@ describe('盗宝大师', () => {
     expect(d.s.players[1].checks[1].result).toBe('狼人');
   });
 
-  it('good 盗宝大师 counts as 神 with two buried gods, 民 with two buried villagers', () => {
+  it('treasureFaction: a buried wolf makes 盗宝狼 (every deal now); a good 盗宝 only in games dealt before that rule', () => {
     expect(treasureFaction(['crow', 'poisoner', 'villager'])).toEqual({ faction: 'good', countsAs: 'god' });
     expect(treasureFaction(['crow', 'villager', 'villager'])).toEqual({ faction: 'good', countsAs: 'villager' });
     expect(treasureFaction(['crow', 'wolf', 'villager'])).toEqual({ faction: 'wolf', countsAs: 'wolf' });
@@ -258,9 +270,9 @@ describe('盗宝大师', () => {
     expect(d.s.players[8].alive).toBe(false);
   });
 
-  it('the 毒师 card poisons once; the 猎人 card lets it shoot', () => {
-    const d = new Driver(DBDS, { sheriff: false }, ['poisoner', 'hunter', 'villager']);
-    expect(d.s.players[0].treasure?.faction).toBe('good');
+  it('the 毒师 card poisons once; the same card cannot be used two nights running', () => {
+    const d = new Driver(DBDS, { sheriff: false }, ['poisoner', 'villager', 'wolf']);
+    expect(d.s.players[0].treasure?.faction).toBe('wolf');
     d.start();
     d.toStep('treasure');
     d.act(1, { type: 'treasure', card: 0, target: 9, kill: null });
@@ -269,13 +281,21 @@ describe('盗宝大师', () => {
     d.toDay();
     d.toPhase('deathSkills');
     expect(d.s.players[8].death?.causes).toEqual(['poison']);
+    expect(d.s.players[0].treasure?.poisons[0]).toBe(false);
     d.toDiscussion();
     d.endSpeeches();
     d.voteAll(null, {});
     d.until(() => d.phase.kind === 'night');
     d.toStep('treasure');
-    // card 0 cannot be repeated; take the hunter card and get exiled tomorrow
-    d.act(1, { type: 'treasure', card: 1, target: null, kill: null });
+    expect((d.g.promptFor(1) as { allowedCards: number[] }).allowedCards).not.toContain(0);
+  });
+
+  it('holding the 猎人 card, an exiled 盗宝狼 may shoot', () => {
+    const d = new Driver(DBDS, { sheriff: false }, ['hunter', 'villager', 'wolf']);
+    expect(d.s.players[0].treasure?.faction).toBe('wolf');
+    d.start();
+    d.toStep('treasure');
+    d.act(1, { type: 'treasure', card: 0, target: null, kill: null });
     d.pick(5, 'dreamer', [11]);
     d.wolves(null);
     d.toDay();
@@ -297,8 +317,9 @@ describe('盗宝大师', () => {
       const w = buried.filter((x) => k(x) === 'wolf').length;
       const g = buried.filter((x) => k(x) === 'god').length;
       const v = buried.filter((x) => k(x) === 'villager').length;
-      expect([`${w}${g}${v}`]).toContainEqual(expect.stringMatching(/^(111|021|012)$/));
-      if (w) expect(buried).toContain('wolf'); // never the 狼王
+      expect(`${w}${g}${v}`).toBe('111'); // always one god, one villager and one wolf …
+      expect(buried).toContain('wolf'); // … a plain one, never the 狼王
+      expect(treasureFaction(buried).faction).toBe('wolf');
       const game = Game.create(cfg, seed, 1);
       const count = { god: 0, villager: 0, wolf: 0 };
       for (const p of game.s.players) count[game.countsAs(p)]++;

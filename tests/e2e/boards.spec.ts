@@ -118,7 +118,7 @@ test('机械狼通灵师: 机械狼 learns and poisons, 通灵师 sees the learn
   expect(errors).toEqual([]);
 });
 
-test('盗宝大师: card choice with a skill target, the poisoned 蒙面人 goes out after speaking', async ({ page, browser }, ti) => {
+test('盗宝大师: 首夜禁刀, card choice with a skill target, the poisoned 蒙面人 goes out after speaking', async ({ page, browser }, ti) => {
   const errors: string[] = [];
   watchErrors(page, errors);
   const { url, roomId } = await createRoom(page, '盗宝大师');
@@ -158,8 +158,10 @@ test('盗宝大师: card choice with a skill target, the poisoned 蒙面人 goes
   await page.getByRole('button', { name: '不上警', exact: true }).click();
   await mk.getByRole('button', { name: '不上警', exact: true }).click();
   const stopOwner = autoSpeech(page);
-  // only 9 is announced; the poisoned 蒙面人 is still alive and knows it is wounded
-  await expect(mk.locator('.seat', { hasText: '机器人壬' }).locator('.seat-dead')).toBeVisible({ timeout: 60000 });
+  // 首夜禁刀: nobody was knifed, and the poisoned 蒙面人 is not announced, so the night is peaceful;
+  // the 蒙面人 is still alive and knows it is wounded
+  await expect(mk.locator('.speaker', { hasText: /^发言：/ })).toBeVisible({ timeout: 90000 });
+  await expect(page.locator('.seat', { hasText: '机器人壬' }).locator('.seat-dead')).toHaveCount(0);
   await mk.getByRole('button', { name: '技能' }).click();
   await expect(mk.getByText('负伤：今天你发言结束后出局。')).toBeVisible();
   await shot(mk, 't3-masked-wounded', ti);
@@ -173,7 +175,7 @@ test('盗宝大师: card choice with a skill target, the poisoned 蒙面人 goes
   // the public record explains the delayed death
   await page.getByRole('button', { name: '记录' }).click();
   await expect(page.locator('.history')).toContainText('3号出局（第1夜负伤，发言后出局）');
-  await expect(page.locator('.history')).toContainText('第1夜死亡：9号');
+  await expect(page.locator('.history')).toContainText('第1夜：平安夜');
   await page.locator('.modal-close').click();
 
   stopOwner();

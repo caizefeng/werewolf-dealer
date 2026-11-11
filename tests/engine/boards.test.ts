@@ -281,14 +281,14 @@ describe('盗宝大师 (12)', () => {
     expect(res.players.find((p) => p.seat === 1)).toMatchObject({ faction: 'wolf', won: true });
   });
 
-  it('good 盗宝 with a 蒙面人 on the table: the wounded 蒙面人 goes out after speaking', () => {
-    // buried 毒师/通灵师/平民 → good 盗宝 counting as 神; table has 蒙面人 at 3 instead of the 毒师
-    const seats: RoleId[] = ['treasure', 'villager', 'masked', 'hunter', 'dreamer', 'wolfking', 'wolf', 'wolf', 'wolf', 'villager', 'villager', 'villager'];
-    const d = new Driver(seats, { sheriff: false }, ['poisoner', 'psychic', 'villager']);
-    expect(d.s.players[0].treasure).toMatchObject({ faction: 'good', countsAs: 'god' });
+  it('盗宝狼 with the 通灵师 card and a 蒙面人 on the table: the wounded 蒙面人 goes out after speaking', () => {
+    // buried 通灵师/平民/狼人 → 盗宝狼; table has 蒙面人 at 3; custom rules without 首夜禁刀 so night 1 has a knife
+    const seats: RoleId[] = ['treasure', 'villager', 'masked', 'hunter', 'dreamer', 'wolfking', 'wolf', 'wolf', 'villager', 'villager', 'villager', 'villager'];
+    const d = new Driver(seats, { sheriff: false }, ['psychic', 'villager', 'wolf']);
+    expect(d.s.players[0].treasure).toMatchObject({ faction: 'wolf', countsAs: 'wolf' });
     d.start();
     d.toStep('treasure');
-    d.act(1, { type: 'treasure', card: 1, target: 6, kill: null }); // 通灵师 card checks the 狼王
+    d.act(1, { type: 'treasure', card: 0, target: 6, kill: null }); // 通灵师 card checks the 狼王
     expect(d.s.players[0].checks[0].result).toBe('狼王');
     d.pick(5, 'dreamer', [10]);
     d.wolves(3);
