@@ -32,10 +32,19 @@ const CLIP_TEXT: Record<string, string> = allClips();
 export const T = {
   introPad: 2.5,
   openPad: 0.5,
-  minAct: 4,
+  /**
+   * Every role step lasts at least a random cover (seconds), whether its role is alive, dead or buried and
+   * however fast its player acts. Only a slower decision makes a step longer, and steps that nobody acts in
+   * imitate decisions measured in the same game (`pace`), so a step's length tells neither who is alive nor
+   * who decides fast. Status confirmations (猎人/狼王 status …) last a fixed random time whatever happens.
+   */
+  cover: [10, 18] as const,
+  wolvesCover: [16, 26] as const,
+  /** decision time imitated before five real ones were measured (log-normal median, seconds) */
+  thinkMedian: 7,
+  wolvesThinkMedian: 14,
   submitHold: 1.5,
   resultHold: 3.5,
-  fakeAct: [6, 13] as const,
   statusAct: [4.5, 6.5] as const,
   stepGap: [1.0, 2.2] as const,
   interlude: 3.5,
@@ -629,6 +638,7 @@ export class Game {
         ph.actMin += delta;
         ph.actMax += delta;
         if (ph.doneAt != null) ph.doneAt += delta;
+        if (ph.actStart != null) ph.actStart += delta;
         break;
       case 'interlude':
         ph.until += delta;
@@ -880,6 +890,7 @@ export class Game {
     ph.doneAt = null;
     ph.actMin = 0;
     ph.actMax = 0;
+    delete ph.actStart;
   }
 
   clipText(id: string): string {
@@ -895,29 +906,37 @@ export class Game {
       case 'open': {
         const step = ph.steps[ph.idx];
         ph.sub = 'act';
+        ph.actStart = now;
         if (STATUS_STEPS.includes(step)) {
           ph.fake = true;
           ph.until = now + randInt(this.s, T.statusAct[0] * this.k, T.statusAct[1] * this.k);
-        } else if (!this.stepInteractive(step)) {
+          return;
+        }
+        const wolves = step === 'wolves';
+        const [c0, c1] = wolves ? T.wolvesCover : T.cover;
+        const cover = randInt(this.s, c0 * this.k, c1 * this.k);
+        const rules = this.s.config.rules;
+        const secs = wolves ? rules.wolfSeconds : step === 'treasure' ? rules.actionSeconds + T.treasureExtra : rules.actionSeconds;
+        const limit = secs * this.k;
+        if (!this.stepInteractive(step)) {
+          // nobody acts (dead, buried, nothing to do tonight): imitate a real decision, under the same cover
           ph.fake = true;
-          ph.until = now + randInt(this.s, T.fakeAct[0] * this.k, T.fakeAct[1] * this.k);
+          ph.until = now + Math.min(limit, Math.max(cover, this.imitatedThink(wolves) + T.submitHold * this.k));
         } else {
           ph.fake = false;
-          ph.actMin = now + T.minAct * this.k;
-          const secs =
-            step === 'wolves'
-              ? this.s.config.rules.wolfSeconds
-              : step === 'treasure'
-                ? this.s.config.rules.actionSeconds + T.treasureExtra
-                : this.s.config.rules.actionSeconds;
-          ph.actMax = now + secs * this.k;
+          ph.actMin = now + cover;
+          ph.actMax = now + limit;
           ph.until = ph.actMax;
         }
         return;
       }
       case 'act': {
         const step = ph.steps[ph.idx];
-        if (!ph.fake && ph.doneAt == null) this.applyDefault(step, now);
+        if (!ph.fake && ph.doneAt == null) {
+          // a decision that ran out of time is a real step length too
+          this.recordPace(step, now);
+          this.applyDefault(step, now);
+        }
         const clips = stepClips(step, this.s.night, this.s.config);
         this.announce(now, clips.close.map((c) => this.clipText(c)).join(''), clips.close);
         ph.sub = 'close';
@@ -934,7 +953,30 @@ export class Game {
 
   private markDone(now: number): void {
     const ph = this.s.phase as NightPhase;
-    if (ph.doneAt == null) ph.doneAt = now;
+    if (ph.doneAt != null) return;
+    ph.doneAt = now;
+    this.recordPace(ph.steps[ph.idx], now);
+  }
+
+  /** remembers how long a real decision took in this game (acting before the window opened counts as 0) */
+  private recordPace(step: NightStepId, now: number): void {
+    const ph = this.s.phase as NightPhase;
+    const took = ph.sub === 'act' && ph.actStart != null ? now - ph.actStart : 0;
+    const pace = (this.s.pace ??= { wolves: [], role: [] });
+    const pool = step === 'wolves' ? pace.wolves : pace.role;
+    pool.push(took);
+    if (pool.length > 40) pool.shift();
+  }
+
+  /** a decision time for a step nobody acts in: one measured in this game, or a typical one until there are five */
+  private imitatedThink(wolves: boolean): number {
+    const pool = (wolves ? this.s.pace?.wolves : this.s.pace?.role) ?? [];
+    if (pool.length >= 5) return pool[Math.floor(rand(this.s) * pool.length)];
+    // log-normal: most decisions take a few seconds to about twenty, a few take much longer
+    const u1 = 1 - rand(this.s);
+    const u2 = rand(this.s);
+    const z = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+    return Math.exp(Math.log(wolves ? T.wolvesThinkMedian : T.thinkMedian) + 0.6 * z) * this.k;
   }
 
   /** what the current night step lets `seat` choose from */

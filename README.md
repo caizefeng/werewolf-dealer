@@ -98,8 +98,12 @@ run inside the server, so no extra phones or browser tabs are needed.
 - Each phone receives only its own private view (`server/rooms.ts` builds per-client views). Other
   roles never reach the browser, not even in the WebSocket traffic.
 - Every role configured for the board is called every night, even when that player is dead
-  or the card is buried. Dead/absent steps wait a random 6–13 s, and live players must wait at
-  least 4 s, so step timing does not reveal who is alive.
+  or the card is buried, and a step's length gives nothing away. Every role step lasts at least a random
+  10–18 s (the wolves 16–26 s), whether its player is alive, dead or buried and however fast they act: a
+  quick decision does not end the step early. Only a decision that takes longer makes a step longer, and
+  steps nobody acts in (dead or buried roles, a witch without potions …) imitate the decision times
+  measured in the same game, so long steps happen for dead roles too. Status confirmations (猎人/狼王 status,
+  蒙面人, 白神 …) always last a random 4.5–6.5 s.
 - Night countdowns are only sent to the acting player (a public countdown would reveal that the
   called role is alive).
 - Spoken lines never contain private information (the witch hears the same line whatever happened).

@@ -5,7 +5,7 @@ import type { RoleId } from '../../shared/roles.ts';
 import { Bot } from './bots.ts';
 import { autoSpeech, createRoom, PORT, shot, watchErrors } from './helpers.ts';
 
-test.describe.configure({ timeout: 420_000 });
+test.describe.configure({ timeout: 720_000 });
 
 /** clicks `name` if it is on screen right now (the game moves on by itself, so races are fine) */
 async function tap(p: Page, name: string | RegExp): Promise<boolean> {
@@ -60,7 +60,7 @@ test('solo: the owner fills the table with bots and plays a whole game as 预言
   const stop = autoSpeech(page);
   let checks = 0;
   let votes = 0;
-  const deadline = Date.now() + 360_000;
+  const deadline = Date.now() + 600_000;
   while (!(await page.locator('.result-panel').isVisible())) {
     expect(Date.now(), 'the game did not end').toBeLessThan(deadline);
     if (await page.getByText('请选择你要查验的玩家').isVisible()) {

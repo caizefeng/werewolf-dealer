@@ -329,31 +329,52 @@ describe('盗宝大师', () => {
 });
 
 describe('night timing does not leak who is alive', () => {
-  it('a dead role is still called and waits a plausible time', () => {
-    const d = new Driver(
-      ['seer', 'witch', 'hunter', 'guard', 'wolf', 'wolf', 'wolf', 'wolf', 'villager', 'villager', 'villager', 'villager'],
-      { sheriff: false },
-    );
-    d.s.players[0].alive = false; // seer dead
+  const SEATS12: RoleId[] = ['seer', 'witch', 'hunter', 'guard', 'wolf', 'wolf', 'wolf', 'wolf', 'villager', 'villager', 'villager', 'villager'];
+  /** how long the seer's step stays open (its act window up to 请闭眼): seer dead, or alive and answering at once */
+  function seerStep(seed: number, seer: 'dead' | 'instant', pace?: { wolves: number[]; role: number[] }): number {
+    const d = new Driver(SEATS12, { sheriff: false }, null, seed);
+    if (seer === 'dead') d.s.players[0].alive = false;
     d.start();
-    d.toStep('seer');
-    expect(d.g.promptFor(1)).toBe(null);
+    d.toStep('seer'); // stops while the step is still opening
+    if (pace) d.s.pace = pace;
+    if (seer === 'instant') d.act(1, { type: 'pick', step: 'seer', targets: [5] });
     d.until(() => (d.phase as any).sub === 'act');
-    const ph = d.phase as any;
-    expect(ph.fake).toBe(true);
-    const len = ph.until - d.now;
-    expect(len).toBeGreaterThanOrEqual(T.fakeAct[0] * 1000);
-    expect(len).toBeLessThanOrEqual(T.fakeAct[1] * 1000);
+    const t0 = d.now;
+    d.until(() => (d.phase as any).sub === 'close');
+    return d.now - t0;
+  }
+
+  it('a fast answer does not shorten a step, and a dead role gets the same random cover', () => {
+    const [c0, c1] = [T.cover[0] * 1000, T.cover[1] * 1000];
+    const fast: number[] = [];
+    const dead: number[] = [];
+    for (let seed = 1; seed <= 300; seed++) {
+      fast.push(seerStep(seed, 'instant'));
+      dead.push(seerStep(seed, 'dead'));
+    }
+    // nobody's step is ever shorter than the cover, so a quick decision cannot be seen
+    for (const x of [...fast, ...dead]) expect(x).toBeGreaterThanOrEqual(c0);
+    for (const x of fast) expect(x).toBeLessThanOrEqual(c1);
+    // the dead seer's steps spread over the same range (now and then longer, like a slow decision)
+    expect(Math.min(...dead)).toBeLessThan(c0 + 1000);
+    expect(Math.max(...fast)).toBeGreaterThan(c1 - 1000);
+    expect(dead.filter((x) => x <= c1).length).toBeGreaterThan(dead.length * 0.6);
+    expect(dead.some((x) => x > c1)).toBe(true);
   });
 
-  it('an alive actor who answers instantly still waits the minimum', () => {
-    const d = new Driver(['seer', 'wolf', 'villager', 'villager', 'villager'], { sheriff: false });
+  it('steps nobody acts in imitate how long real decisions took in this game', () => {
+    const slow = { wolves: [], role: Array(10).fill(40_000) };
+    for (let seed = 1; seed <= 20; seed++) expect(seerStep(seed, 'dead', slow)).toBe(40_000 + T.submitHold * 1000);
+    // real decisions are measured from the moment the window opens
+    const d = new Driver(SEATS12, { sheriff: false });
     d.start();
     d.toStep('seer');
-    const t0 = d.now;
-    d.act(1, { type: 'pick', step: 'seer', targets: [2] });
-    d.until(() => (d.phase as any).sub === 'close');
-    expect(d.now - t0).toBeGreaterThanOrEqual(T.minAct * 1000);
+    d.until(() => (d.phase as any).sub === 'act');
+    const before = d.s.pace?.role.length ?? 0;
+    d.advance(7000);
+    d.act(1, { type: 'pick', step: 'seer', targets: [5] });
+    expect(d.s.pace!.role.length).toBe(before + 1);
+    expect(d.s.pace!.role[d.s.pace!.role.length - 1]).toBe(7000);
   });
 
   it('nobody but the actor gets a night prompt', () => {

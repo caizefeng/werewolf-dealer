@@ -69,8 +69,11 @@ syntax and import with explicit `.ts` extensions.
 - `Game` never reads the clock or Math.random: pass `now`; randomness from `rand(state)`.
   `tick(now)` advances timed phases; `nextWakeup()` tells the room when to tick.
 - All durations go through `this.k` (ms per second × `scale`); `TIME_SCALE` env speeds games up.
-- Night: steps come from the **config pool** (buried/dead roles are still called); non-interactive
-  steps wait a random fake time; interactive ones wait ≥ `T.minAct`. Night deadlines are private.
+- Night: steps come from the **config pool** (buried/dead roles are still called). Every role step lasts at least
+  a random cover (`T.cover`, `T.wolvesCover`) however fast its player acts; steps nobody acts in last
+  max(cover, `imitatedThink()`), a decision time replayed from `state.pace` (real decisions in this game, recorded by
+  `recordPace()`, incl. timeouts) or a log-normal prior. Status steps last a fixed random `T.statusAct`. So a step's
+  length tells neither who is alive nor who decides fast. Night deadlines are private.
 - Night deaths are computed at dawn into `state.pending` and only applied when announced
   (after the day-1 election). Never expose pending deaths in any view.
 - Day = queue of stages (`election`, `nightDeaths`, `discussion`, `exile`); 自爆 truncates it.

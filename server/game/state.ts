@@ -133,6 +133,8 @@ export interface NightPhase {
   actMax: number;
   fake: boolean;
   doneAt: number | null;
+  /** when the current act sub-phase began (decision times are measured from it) */
+  actStart?: number;
 }
 
 export interface DeathEntry {
@@ -221,6 +223,12 @@ export interface GameState {
   nextAnnId: number;
   winner: Winner | null;
   winReason: string;
+  /**
+   * How long real night decisions took in this game (game ms, the last 40 per pool). Steps that nobody acts in
+   * (dead or buried roles, nothing to do tonight) imitate these, so a step's length does not tell who is alive.
+   * Missing in older snapshots.
+   */
+  pace?: { wolves: number[]; role: number[] };
   paused: { at: number } | null;
   /** speaking direction picked for today's discussion */
   discussionNote: string | null;
