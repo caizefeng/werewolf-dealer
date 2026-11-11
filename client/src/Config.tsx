@@ -97,7 +97,7 @@ export function ConfigEditor({ value, onChange }: { value: GameConfig; onChange:
                   </span>
                   <span class="stepper">
                     <button type="button" aria-label={`减少${ROLES[r].name}`} disabled={n === 0} onClick={() => setCount(r, n - 1)}>
-                      −
+                      <StepSign />
                     </button>
                     <b>{n}</b>
                     <button
@@ -106,7 +106,7 @@ export function ConfigEditor({ value, onChange }: { value: GameConfig; onChange:
                       disabled={!MULTI_ROLES.includes(r) && n >= 1}
                       onClick={() => setCount(r, n + 1)}
                     >
-                      +
+                      <StepSign plus />
                     </button>
                   </span>
                 </div>
@@ -164,6 +164,15 @@ export function ConfigEditor({ value, onChange }: { value: GameConfig; onChange:
         </div>
       )}
     </div>
+  );
+}
+
+/** − / + drawn as strokes: a text character sits where its font puts it, which is off the middle of the button */
+function StepSign({ plus }: { plus?: boolean }) {
+  return (
+    <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
+      <path d={plus ? 'M1 6h10M6 1v10' : 'M1 6h10'} stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+    </svg>
   );
 }
 
