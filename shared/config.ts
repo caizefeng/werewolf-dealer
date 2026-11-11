@@ -94,7 +94,7 @@ export const BOARDS: BoardPreset[] = [
   {
     id: 'dbds',
     name: '盗宝大师',
-    note: '15张牌，埋3张底牌，首夜禁刀',
+    note: '首夜禁刀',
     roles: { treasure: 1, psychic: 1, poisoner: 1, hunter: 1, dreamer: 1, masked: 1, wolfking: 1, wolf: 3, villager: 5 },
     rules: { firstNightNoKnife: true },
   },
