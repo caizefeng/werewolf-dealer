@@ -108,6 +108,48 @@ describe('机械狼', () => {
     expect(d.s.pending).toEqual([{ seat: 7, causes: ['poison'] }]);
   });
 
+  it('机械守卫 guards like a 守卫: itself or nobody allowed, not the same player twice running, 同守同救 kills', () => {
+    type Pick = { options: number[]; allowNone: boolean; lines: string[] };
+    const d = new Driver(JXL, { sheriff: false });
+    d.start();
+    d.pick(8, 'mechLearn', [4]); // learns the guard
+    d.wolves(null);
+    d.toDay();
+    dayPass(d);
+    // night 2: the pack knifes the 机械狼, which guards itself
+    d.wolves(8);
+    d.toStep('mechSkill');
+    const n2 = d.g.promptFor(8) as Pick;
+    expect(n2.options).toContain(8);
+    expect(n2.allowNone).toBe(true);
+    expect(n2.lines).toContain('可以守护自己，也可以空守。');
+    d.act(8, { type: 'pick', step: 'mechSkill', targets: [8] });
+    d.toDay();
+    expect(d.s.pending).toEqual([]);
+    expect(d.s.nights[1].log).toContain('机械狼(8号)作为机械守卫守护8号');
+    expect(d.g.skillView(8).notes).toContain('上一晚守护：8号');
+    dayPass(d);
+    // night 3: not itself again; the witch saves the knifed 10, whom the 机械守卫 guards too: 同守同救
+    d.wolves(10);
+    d.witch(2, 10, null);
+    d.toStep('mechSkill');
+    const n3 = d.g.promptFor(8) as Pick;
+    expect(n3.options).not.toContain(8);
+    expect(n3.lines).toContain('昨晚守护：8号（今晚不能再守）');
+    d.act(8, { type: 'pick', step: 'mechSkill', targets: [10] });
+    d.toDay();
+    expect(d.s.pending).toEqual([{ seat: 10, causes: ['knife'] }]);
+    dayPass(d);
+    // night 4: 空守, after which nobody is barred
+    d.wolves(null);
+    d.toStep('mechSkill');
+    d.act(8, { type: 'pick', step: 'mechSkill', targets: [] });
+    d.toDay();
+    expect(d.s.nights[3].log).toContain('机械狼(8号)作为机械守卫空守');
+    expect(d.s.players[7].mech?.guardLast).toBeNull();
+    expect(d.g.skillView(8).notes.some((n) => n.startsWith('上一晚守护'))).toBe(false);
+  });
+
   it('an unlearned 机械狼 checks as 机械狼 for the psychic and 狼人 for a seer', () => {
     const d = new Driver(JXL, { sheriff: false });
     d.start();

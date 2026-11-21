@@ -235,6 +235,7 @@ describe('fuzz: focused 12-player boards (400 games each, key mechanics must occ
     expect(count(/机械狼\(\d+号\)学习了/)).toBeGreaterThan(0);
     expect(count(/机械狼\(\d+号\)击杀/)).toBeGreaterThan(0);
     expect(count(/机械狼\(\d+号\)发动机械技能/)).toBeGreaterThan(0);
+    expect(count(/机械狼\(\d+号\)作为机械守卫(守护\d+号|空守)/)).toBeGreaterThan(0);
     expect(count(/守卫\(\d+号\)守护/)).toBeGreaterThan(0);
   });
 

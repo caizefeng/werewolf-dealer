@@ -1604,7 +1604,10 @@ export class Game {
     if (rec.seer != null) L.push(`${who('seer')}查验${rec.seer}号：${this.lastCheck('seer', rec.night)}`);
     if (rec.psychic != null) L.push(`${who('psychic')}查验${rec.psychic}号：${this.lastCheck('psychic', rec.night)}`);
     if (rec.curse != null) L.push(`${who('crow')}诅咒${rec.curse}号`);
-    if (rec.mechSkill != null) L.push(`${who('mechwolf')}发动机械技能，目标${rec.mechSkill}号`);
+    if (this.mechSkill() === 'guard') {
+      if (rec.mechSkill !== undefined)
+        L.push(`${who('mechwolf')}作为机械守卫${rec.mechSkill == null ? '空守' : `守护${rec.mechSkill}号`}`);
+    } else if (rec.mechSkill != null) L.push(`${who('mechwolf')}发动机械技能，目标${rec.mechSkill}号`);
     const bouncing = new Set(inp.guards.filter((g) => g.bouncesPoison).map((g) => g.target));
     for (const p of inp.poisons)
       if (bouncing.has(p.target) && p.by != null && p.by !== p.target) L.push(`机械守卫守住${p.target}号，毒药反弹给${p.by}号`);
@@ -3028,8 +3031,11 @@ export class Game {
         const title =
           sk === 'guard' ? '请选择你要守护的玩家' : sk === 'poison' ? '你要使用毒药吗？' : '请选择你要查验的玩家';
         const lines = [`你学习的身份：${ROLES[pl.mech!.learned!].name}`, `机械技能：${MECH_SKILL_TEXT[sk]}`];
-        if (sk === 'guard') lines.push(pl.mech?.bounced ? '弹毒已经用过：今晚的守护只能挡刀。' : '弹毒还可以用一次。');
-        if (sk === 'guard' && pl.mech?.guardLast) lines.push(`昨晚守护：${pl.mech.guardLast}号（今晚不能再守）`);
+        if (sk === 'guard') {
+          // the same guard as a 守卫's, plus 弹毒
+          lines.push(pl.mech?.guardLast ? `昨晚守护：${pl.mech.guardLast}号（今晚不能再守）` : '可以守护自己，也可以空守。');
+          lines.push(pl.mech?.bounced ? '弹毒已经用过：今晚的守护只能挡刀。' : '弹毒还可以用一次。');
+        }
         return P(title, lines, sk === 'guard' ? '空守' : sk === 'poison' ? '不使用' : '不查验', sk === 'guard' ? '守护' : sk === 'poison' ? '毒杀' : '查验');
       }
       default:
@@ -3092,8 +3098,12 @@ export class Game {
           ? `学习了${pl.mech.from}号：${ROLES[pl.mech.learned].name} → ${MECH_SKILL_TEXT[mechSkillFor(pl.mech.learned)]}`
           : '尚未学习',
       );
-      if (mechSkillFor(pl.mech.learned ?? 'villager') === 'poison') notes.push(`机械毒药：${pl.mech.poison ? '可用' : '已用'}`);
-      if (mechSkillFor(pl.mech.learned ?? 'villager') === 'guard') notes.push(`弹毒：${pl.mech.bounced ? '已用（之后只能挡刀）' : '可用一次'}`);
+      const mechSk = mechSkillFor(pl.mech.learned ?? 'villager');
+      if (mechSk === 'poison') notes.push(`机械毒药：${pl.mech.poison ? '可用' : '已用'}`);
+      if (mechSk === 'guard') {
+        if (pl.mech.guardLast) notes.push(`上一晚守护：${pl.mech.guardLast}号`);
+        notes.push(`弹毒：${pl.mech.bounced ? '已用（之后只能挡刀）' : '可用一次'}`);
+      }
       notes.push(`带刀状态：${this.knifeHolder() === seat ? '可以带刀' : '不能带刀'}`);
     }
     if (pl.treasure) {
